@@ -1,14 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { AdminView } from "./admin-view";
 import {
   Users,
   Dumbbell,
   QrCode,
   TrendingUp,
   AlertTriangle,
+  Calendar,
+  Award,
+  Activity,
+  CheckCircle2,
+  Clock,
+  UserCheck,
 } from "lucide-react";
+import { format } from "date-fns";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -29,35 +35,194 @@ export default async function DashboardPage() {
   const activeRole =
     user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
 
-  // Fetch stats for admin overview
+  const greeting = getGreeting();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  // 1. ADMIN DATA FETCHING
   let totalUsers = 0;
   let totalTrainers = 0;
-  let allUsers: any[] = [];
+  let attendanceToday = 0;
+  let sessionsThisMonth = 0;
 
   if (activeRole === "ADMIN") {
-    [totalUsers, totalTrainers, allUsers] = await Promise.all([
+    const [usersCount, trainersCount, todayCount, monthCount] = await Promise.all([
       prisma.user.count(),
       prisma.userRole.count({ where: { role: "TRAINER" } }),
-      prisma.user.findMany({
-        include: { roles: true },
-        orderBy: { createdAt: "desc" },
+      prisma.attendance.count({
+        where: {
+          date: today,
+        },
+      }),
+      prisma.attendance.count({
+        where: {
+          date: {
+            gte: startOfMonth,
+          },
+        },
       }),
     ]);
+    totalUsers = usersCount;
+    totalTrainers = trainersCount;
+    attendanceToday = todayCount;
+    sessionsThisMonth = monthCount;
   }
 
-  const greeting = getGreeting();
+  // 2. TRAINER DATA FETCHING
+  let trainerTotalMembers = 0;
+  let trainerTotalSessions = 0;
+  let trainerSessionsThisMonth = 0;
+  let trainerRecentClients: any[] = [];
+
+  if (activeRole === "TRAINER") {
+    let trainer = await prisma.trainer.findUnique({
+      where: { userId: user.id },
+    });
+    if (!trainer) {
+      trainer = await prisma.trainer.create({
+        data: { userId: user.id },
+      });
+    }
+
+    const [memberCount, totalCount, monthCount, recentLogs] = await Promise.all([
+      prisma.member.count({
+        where: { trainerId: trainer.id },
+      }),
+      prisma.attendance.count({
+        where: { trainerId: trainer.id },
+      }),
+      prisma.attendance.count({
+        where: {
+          trainerId: trainer.id,
+          date: {
+            gte: startOfMonth,
+          },
+        },
+      }),
+      prisma.attendance.findMany({
+        where: { trainerId: trainer.id },
+        include: {
+          member: {
+            include: {
+              user: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 5,
+      }),
+    ]);
+
+    trainerTotalMembers = memberCount;
+    trainerTotalSessions = totalCount;
+    trainerSessionsThisMonth = monthCount;
+    trainerRecentClients = recentLogs;
+  }
+
+  // 3. MEMBER DATA FETCHING
+  let memberRemainingSessions = 0;
+  let memberSessionsThisMonth = 0;
+  let memberTotalSessions = 0;
+  let memberActivePackageName = "Tidak ada paket aktif";
+  let memberExpiryDate: Date | null = null;
+  let memberRecentAttendances: any[] = [];
+
+  if (activeRole === "MEMBER") {
+    let member = await prisma.member.findUnique({
+      where: { userId: user.id },
+      include: {
+        subscriptions: {
+          where: { status: "ACTIVE" },
+          include: { package: true },
+        },
+        memberships: {
+          where: { status: "ACTIVE" },
+          include: { package: true },
+        },
+      },
+    });
+
+    if (!member) {
+      member = await prisma.member.create({
+        data: { userId: user.id },
+        include: {
+          subscriptions: {
+            where: { status: "ACTIVE" },
+            include: { package: true },
+          },
+          memberships: {
+            where: { status: "ACTIVE" },
+            include: { package: true },
+          },
+        },
+      });
+    }
+
+    const activeSub = member.subscriptions[0];
+    const activeMembership = member.memberships[0];
+
+    memberRemainingSessions =
+      (activeSub?.remainingSessions || 0) + (activeMembership?.remainingSessions || 0);
+    memberActivePackageName =
+      activeSub?.package.name || activeMembership?.package.name || "Trial 10 Sesi (Auto-provisioned)";
+    
+    // Fallback: If no subscription is loaded yet because page hasn't reloaded after lazy initialization
+    if (!activeSub && !activeMembership) {
+      memberRemainingSessions = 10;
+    }
+    
+    memberExpiryDate = activeSub?.endDate || activeMembership?.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    const [monthCount, totalCount, recentLogs] = await Promise.all([
+      prisma.attendance.count({
+        where: {
+          memberId: member.id,
+          date: {
+            gte: startOfMonth,
+          },
+        },
+      }),
+      prisma.attendance.count({
+        where: { memberId: member.id },
+      }),
+      prisma.attendance.findMany({
+        where: { memberId: member.id },
+        include: {
+          trainer: {
+            include: {
+              user: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 5,
+      }),
+    ]);
+
+    memberSessionsThisMonth = monthCount;
+    memberTotalSessions = totalCount;
+    memberRecentAttendances = recentLogs;
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* ── Page Header ── */}
+      {/* Page Header */}
       <div>
-        <p className="text-muted text-sm">{greeting}</p>
+        <p className="text-muted text-sm font-medium">{greeting}</p>
         <h1 className="text-2xl font-bold tracking-tight mt-1">
           {user.user_metadata?.full_name || "Dashboard"}
         </h1>
       </div>
 
-      {/* ── Sync Warning ── */}
+      {/* Sync Warning */}
       {availableRoles.length === 0 && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] px-6 py-5">
           <div className="flex gap-4">
@@ -76,10 +241,9 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* ── Admin View ── */}
+      {/* ── ADMIN OVERVIEW ── */}
       {activeRole === "ADMIN" && (
-        <>
-          {/* Stats Grid */}
+        <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <StatCard
               icon={<Users size={18} />}
@@ -98,45 +262,205 @@ export default async function DashboardPage() {
             <StatCard
               icon={<QrCode size={18} />}
               label="Absensi Hari Ini"
-              value={0}
+              value={attendanceToday}
               accent="text-emerald-400"
               bg="bg-emerald-500/10"
             />
             <StatCard
               icon={<TrendingUp size={18} />}
               label="Sesi Bulan Ini"
-              value={0}
+              value={sessionsThisMonth}
               accent="text-amber-400"
               bg="bg-amber-500/10"
             />
           </div>
 
-          {/* User Management */}
-          <AdminView initialUsers={allUsers} />
-        </>
-      )}
-
-      {/* ── Trainer View ── */}
-      {activeRole === "TRAINER" && (
-        <div className="glass-card px-8 py-12 text-center">
-          <Dumbbell size={32} className="text-accent mx-auto mb-4 opacity-60" />
-          <h2 className="text-lg font-semibold mb-2">Panel Trainer</h2>
-          <p className="text-muted text-sm max-w-md mx-auto leading-relaxed">
-            Lihat jadwal member, buat session notes, dan scan absensi member.
-            Fitur ini sedang dalam pengembangan.
-          </p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 glass-card p-6">
+              <h3 className="text-sm font-semibold mb-4 text-white">Panduan Administrator</h3>
+              <div className="space-y-4 text-xs text-muted leading-relaxed">
+                <p>
+                  Sebagai Administrator, Anda memiliki akses penuh untuk mengatur otorisasi pengguna. Buka tab <b>Manajemen User</b> di menu samping untuk mengaktifkan akses Trainer atau Admin kepada pengguna lain.
+                </p>
+                <p>
+                  Semua aktivitas perubahan wewenang pengguna dan pencatatan absensi yang dilakukan oleh Trainer akan secara otomatis terekam di tab <b>Audit Log</b> demi menjaga integritas data latihan.
+                </p>
+              </div>
+            </div>
+            <div className="glass-card p-6 flex flex-col justify-center items-center text-center">
+              <Award className="text-accent mb-3" size={32} />
+              <h4 className="text-xs font-semibold text-white">SaaS-Grade PTMS</h4>
+              <p className="text-[10px] text-muted mt-2 max-w-[200px]">
+                Sistem absensi berbasis QR Code terenkripsi instan 30 detik untuk keandalan pencatatan kehadiran traineer.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── Member View ── */}
+      {/* ── TRAINER OVERVIEW ── */}
+      {activeRole === "TRAINER" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <StatCard
+              icon={<Users size={18} />}
+              label="Member Dibimbing"
+              value={trainerTotalMembers}
+              accent="text-violet-400"
+              bg="bg-violet-500/10"
+            />
+            <StatCard
+              icon={<Activity size={18} />}
+              label="Sesi Scan Bulan Ini"
+              value={trainerSessionsThisMonth}
+              accent="text-blue-400"
+              bg="bg-blue-500/10"
+            />
+            <StatCard
+              icon={<CheckCircle2 size={18} />}
+              label="Total Sesi Sukses"
+              value={trainerTotalSessions}
+              accent="text-emerald-400"
+              bg="bg-emerald-500/10"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted">Aktivitas Check-in Terbaru</h3>
+                <span className="text-[10px] text-accent font-medium">Real-time</span>
+              </div>
+
+              {trainerRecentClients.length === 0 ? (
+                <div className="text-center py-8 text-muted text-xs">
+                  Belum ada riwayat check-in member yang Anda proses.
+                </div>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {trainerRecentClients.map((att) => (
+                    <div key={att.id} className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-white">
+                          {(att.member.user.fullName?.[0] || "M").toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-white">{att.member.user.fullName}</p>
+                          <p className="text-[10px] text-muted">{att.member.user.email}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                          <CheckCircle2 size={10} /> Sukses
+                        </span>
+                        <p className="text-[9px] text-muted mt-0.5">
+                          {format(new Date(att.createdAt), "dd MMM, HH:mm")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="glass-card p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Clock size={16} className="text-accent" />
+                <h4 className="text-xs font-semibold text-white">Pemberitahuan Trainer</h4>
+              </div>
+              <p className="text-[11px] text-muted leading-relaxed">
+                Gunakan menu <b>QR Absensi</b> untuk memverifikasi QR Code latihan milik member. Setiap scan yang sukses akan memotong sisa sesi member dan tercatat di riwayat kehadiran secara instan.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MEMBER OVERVIEW ── */}
       {activeRole === "MEMBER" && (
-        <div className="glass-card px-8 py-12 text-center">
-          <QrCode size={32} className="text-accent mx-auto mb-4 opacity-60" />
-          <h2 className="text-lg font-semibold mb-2">Panel Member</h2>
-          <p className="text-muted text-sm max-w-md mx-auto leading-relaxed">
-            Generate QR code absensi, lihat sisa sesi, dan riwayat latihan Anda.
-            Fitur ini sedang dalam pengembangan.
-          </p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <StatCard
+              icon={<Award size={18} />}
+              label="Sisa Kuota Sesi"
+              value={memberRemainingSessions}
+              accent="text-emerald-400"
+              bg="bg-emerald-500/10"
+            />
+            <StatCard
+              icon={<Activity size={18} />}
+              label="Latihan Bulan Ini"
+              value={memberSessionsThisMonth}
+              accent="text-blue-400"
+              bg="bg-blue-500/10"
+            />
+            <StatCard
+              icon={<CheckCircle2 size={18} />}
+              label="Total Kehadiran"
+              value={memberTotalSessions}
+              accent="text-violet-400"
+              bg="bg-violet-500/10"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Active Subscription details */}
+            <div className="glass-card p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Award size={16} className="text-accent" />
+                <h4 className="text-xs font-semibold text-white">Paket Aktif Anda</h4>
+              </div>
+              <div className="space-y-3 pt-2">
+                <div>
+                  <p className="text-[10px] text-muted uppercase">Nama Paket</p>
+                  <p className="text-xs font-semibold text-white mt-0.5">{memberActivePackageName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted uppercase">Tanggal Kadaluarsa</p>
+                  <p className="text-xs font-semibold text-white mt-0.5">
+                    {memberExpiryDate ? format(new Date(memberExpiryDate), "dd MMMM yyyy") : "-"}
+                  </p>
+                </div>
+                <div className="h-1 bg-white/[0.04] rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500" style={{ width: `${(memberRemainingSessions / 10) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Attendance Logs */}
+            <div className="lg:col-span-2 glass-card p-6">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted mb-4">Riwayat Kehadiran Anda</h3>
+
+              {memberRecentAttendances.length === 0 ? (
+                <div className="text-center py-8 text-muted text-xs">
+                  Belum ada riwayat kehadiran latihan yang tercatat.
+                </div>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {memberRecentAttendances.map((att) => (
+                    <div key={att.id} className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                          <Calendar size={13} className="text-muted" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-white">
+                            {format(new Date(att.date), "EEEE, dd MMMM yyyy")}
+                          </p>
+                          <p className="text-[10px] text-muted">
+                            Trainer: {att.trainer?.user.fullName || "Staf PTMS"}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                        Hadir
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

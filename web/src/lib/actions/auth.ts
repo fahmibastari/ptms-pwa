@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-export async function login(formData: FormData) {
+export async function login(prevState: { error: string } | null, formData: FormData) {
   const supabase = await createClient();
 
   const email = formData.get("email") as string;
@@ -25,7 +25,7 @@ export async function login(formData: FormData) {
   redirect("/dashboard");
 }
 
-export async function register(formData: FormData) {
+export async function register(prevState: { error: string } | null, formData: FormData) {
   const supabase = await createClient();
 
   const fullName = formData.get("fullName") as string;
@@ -182,6 +182,22 @@ export async function updateUserRole(targetUserId: string, role: string, action:
         },
       });
     }
+
+    // Record Audit Log for the role update
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        action: action === "ADD" ? "ADD_ROLE" : "REMOVE_ROLE",
+        entityType: "USER_ROLE",
+        entityId: targetUserId,
+        metadata: {
+          targetUserId,
+          role,
+          action,
+        },
+      },
+    });
+
     return { success: true };
   } catch (err: any) {
     return { error: `Gagal memperbarui role: ${err.message}` };

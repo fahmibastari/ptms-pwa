@@ -41,12 +41,15 @@ export default async function DashboardLayout({
         userEmail={userEmail}
       />
 
-      {/* Main Content — offset by sidebar width */}
-      <main className="relative z-10 ml-[68px] lg:ml-[260px] transition-all duration-300">
+      {/* Main Content — offset by sidebar width on desktop */}
+      <main className="relative z-10 lg:ml-[260px] min-h-screen transition-all duration-300">
         {/* Top Bar */}
         <header className="sticky top-0 z-30 backdrop-blur-xl bg-[#0a0a0f]/70 border-b border-white/[0.06]">
-          <div className="flex items-center justify-between px-8 h-16">
-            <div />
+          <div className="flex items-center justify-between px-6 lg:px-8 h-16">
+            {/* Spacer for mobile hamburger */}
+            <div className="w-10 lg:hidden" />
+            <div className="hidden lg:block" />
+
             <div className="flex items-center gap-4">
               {availableRoles.length > 1 && (
                 <RoleSwitcher
@@ -54,7 +57,6 @@ export default async function DashboardLayout({
                   activeRole={activeRole}
                 />
               )}
-              {/* User avatar in top bar */}
               <div className="w-8 h-8 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-xs">
                 {userName[0]?.toUpperCase()}
               </div>
@@ -63,7 +65,7 @@ export default async function DashboardLayout({
         </header>
 
         {/* Page Content */}
-        <div className="px-8 py-8 max-w-6xl">
+        <div className="px-6 lg:px-8 py-8 w-full max-w-6xl overflow-hidden">
           {children}
         </div>
       </main>

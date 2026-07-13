@@ -73,7 +73,7 @@ export function AdminView({ initialUsers }: AdminViewProps) {
   const allRoles = ["MEMBER", "TRAINER", "ADMIN"];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
       {/* ── Section Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -119,84 +119,86 @@ export function AdminView({ initialUsers }: AdminViewProps) {
         </div>
       ) : (
         <div className="glass-card overflow-hidden">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Pengguna</th>
-                <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.04]">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
-                  {/* User info */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="shrink-0 w-9 h-9 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-muted font-semibold text-xs">
-                        {(user.fullName?.[0] || user.email[0]).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
-                          {user.fullName || "Pengguna Baru"}
-                        </p>
-                        <p className="text-[11px] text-muted truncate">{user.email}</p>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Roles */}
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1.5">
-                      {user.roles.map((r) => {
-                        const s = ROLE_STYLES[r.role] || ROLE_STYLES.MEMBER;
-                        return (
-                          <span
-                            key={r.id}
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${s.bg} ${s.text} ${s.border}`}
-                          >
-                            {r.role}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </td>
-
-                  {/* Actions */}
-                  <td className="px-6 py-4 text-right">
-                    <div className="inline-flex flex-wrap justify-end gap-1.5">
-                      {allRoles.map((role) => {
-                        const hasRole = user.roles.some((r) => r.role === role);
-                        const s = ROLE_STYLES[role] || ROLE_STYLES.MEMBER;
-                        return (
-                          <button
-                            key={role}
-                            disabled={isPending}
-                            onClick={() => handleRoleToggle(user.id, role, hasRole)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
-                              hasRole
-                                ? `${s.bg} ${s.text} border ${s.border} hover:opacity-70`
-                                : "bg-white/[0.03] text-muted border border-white/[0.06] hover:bg-white/[0.06] hover:text-white"
-                            }`}
-                          >
-                            {hasRole ? (
-                              <>
-                                <X size={10} /> {role}
-                              </>
-                            ) : (
-                              <>
-                                <Plus size={10} /> {role}
-                              </>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </td>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full min-w-[700px] text-left">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Pengguna</th>
+                  <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider text-right">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {filteredUsers.map((user) => (
+                  <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
+                    {/* User info */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 w-9 h-9 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-muted font-semibold text-xs">
+                          {(user.fullName?.[0] || user.email[0]).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {user.fullName || "Pengguna Baru"}
+                          </p>
+                          <p className="text-[11px] text-muted truncate">{user.email}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Roles */}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1.5">
+                        {user.roles.map((r) => {
+                          const s = ROLE_STYLES[r.role] || ROLE_STYLES.MEMBER;
+                          return (
+                            <span
+                              key={r.id}
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${s.bg} ${s.text} ${s.border}`}
+                            >
+                              {r.role}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-6 py-4 text-right">
+                      <div className="inline-flex flex-wrap justify-end gap-1.5">
+                        {allRoles.map((role) => {
+                          const hasRole = user.roles.some((r) => r.role === role);
+                          const s = ROLE_STYLES[role] || ROLE_STYLES.MEMBER;
+                          return (
+                            <button
+                              key={role}
+                              disabled={isPending}
+                              onClick={() => handleRoleToggle(user.id, role, hasRole)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                                hasRole
+                                  ? `${s.bg} ${s.text} border ${s.border} hover:opacity-70`
+                                  : "bg-white/[0.03] text-muted border border-white/[0.06] hover:bg-white/[0.06] hover:text-white"
+                              }`}
+                            >
+                              {hasRole ? (
+                                <>
+                                  <X size={10} /> {role}
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={10} /> {role}
+                                </>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
