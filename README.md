@@ -1,1000 +1,589 @@
-# Personal Trainer Management System (PTMS)
+# PTMS Dev — Panduan Operasional
 
-## System Design Document
-
-| Field | Value |
-|---|---|
-| **Version** | 3.0 |
-| **Status** | Draft |
-| **Last Updated** | 13 July 2026 |
-| **Author** | Perpahmian.ltd |
-| **Platform** | Next.js 16 · Progressive Web App |
-| **Database** | PostgreSQL (Supabase-managed) |
-| **ORM** | Prisma 5 |
-| **Auth Provider** | Supabase Auth |
-| **Deployment** | Vercel (Serverless) |
-| **Target Users** | Admin · Trainer · Member |
+> **Personal Trainer Management System** · Progressive Web App  
+> Sistem absensi & manajemen sesi latihan personal trainer berbasis QR Code.
 
 ---
 
-## Table of Contents
+## Daftar Isi
 
-1. [Executive Summary](#1-executive-summary)
-2. [Business Process](#2-business-process)
-3. [User Types & Permissions](#3-user-types--permissions)
-4. [Multi-Role System](#4-multi-role-system)
-5. [High-Level Architecture](#5-high-level-architecture)
-   - 5.1 [Layer Responsibilities](#51-layer-responsibilities)
-   - 5.2 [Connection Pooling](#52-connection-pooling-wajib-untuk-serverless)
-6. [Technology Stack](#6-technology-stack)
-7. [Core Modules](#7-core-modules)
-8. [Database Design](#8-database-design)
-9. [Attendance Flow](#9-attendance-flow)
-10. [API Design](#10-api-design)
-11. [Security Architecture](#11-security-architecture)
-12. [PWA Requirements](#12-pwa-requirements)
-13. [Dashboard Metrics](#13-dashboard-metrics)
-14. [Development Roadmap](#14-development-roadmap)
-15. [Future Roadmap](#15-future-roadmap)
-16. [Security & Operational Policies](#16-security--operational-policies)
+1. [Tentang Aplikasi](#tentang-aplikasi)
+2. [Arsitektur & Tech Stack](#arsitektur--tech-stack)
+3. [Instalasi & Setup Lokal](#instalasi--setup-lokal)
+4. [Struktur Role & Hak Akses](#struktur-role--hak-akses)
+5. [Panduan Role: Admin](#-panduan-role-admin)
+6. [Panduan Role: Trainer](#-panduan-role-trainer)
+7. [Panduan Role: Member](#-panduan-role-member)
+8. [Fitur Multi-Role & Role Switching](#fitur-multi-role--role-switching)
+9. [Alur QR Absensi (End-to-End)](#alur-qr-absensi-end-to-end)
+10. [Deployment ke Vercel](#deployment-ke-vercel)
+11. [Environment Variables](#environment-variables)
+12. [FAQ & Troubleshooting](#faq--troubleshooting)
 
 ---
 
-## 1. Executive Summary
+## Tentang Aplikasi
 
-**Personal Trainer Management System (PTMS)** adalah aplikasi berbasis Progressive Web App (PWA) yang membantu trainer dan member mengelola operasional personal training secara terpusat.
+PTMS Dev adalah platform SaaS untuk mengelola operasional personal training di gym/studio fitness. Fitur utama:
 
-### Scope
-
-| Domain | Capability |
+| Fitur | Deskripsi |
 |---|---|
-| Attendance | Check-in via dynamic QR Code |
-| Membership | Package & subscription management |
-| Session | Tracking & session notes |
-| Finance | Payment & revenue tracking |
-| Relationship | Trainer ↔ Member assignment |
-| History | Personal training records |
-
-### Kenapa PWA?
-
-| Benefit | Detail |
-|---|---|
-| Cross-platform | Installable di Android & iPhone via browser |
-| Distribution | Tidak perlu publish ke Play Store / App Store |
-| Cost | Biaya maintenance lebih rendah dibanding native app |
-| Update | Deploy langsung tanpa review store |
+| **QR Absensi** | Member generate QR → Trainer scan → Sesi terpotong otomatis |
+| **Manajemen Paket** | Admin membuat master paket latihan (nama, harga, jumlah sesi, durasi) |
+| **Kuota Sesi** | Admin mengaktifkan paket untuk member, kuota berkurang tiap check-in |
+| **Role Management** | Admin mengatur siapa yang menjadi Admin / Trainer / Member |
+| **Multi-Role** | Satu akun bisa merangkap beberapa role sekaligus (misal: Trainer + Admin) |
+| **Audit Log** | Semua aktivitas penting tercatat untuk transparansi |
+| **Sesi Latihan** | Riwayat lengkap kehadiran per role |
+| **PWA** | Bisa di-install di HP layaknya aplikasi native |
 
 ---
 
-## 2. Business Process
+## Arsitektur & Tech Stack
 
-### 2.1 Current State (Manual)
-
-| Pain Point | Impact |
+| Layer | Teknologi |
 |---|---|
-| Absensi manual (catatan) | Data tidak terstruktur, sulit diaudit |
-| Pembayaran via WhatsApp | Tidak ada single source of truth |
-| Progress dicatat manual | Sulit dilacak historis |
-| Sisa sesi tidak real-time | Risiko dispute dengan member |
-| Revenue tidak terpusat | Sulit analisis bisnis |
+| Framework | Next.js 16 (App Router) + React 19 + TypeScript |
+| Database | PostgreSQL (Supabase-managed) |
+| ORM | Prisma 7 |
+| Auth | Supabase Auth (JWT + httpOnly cookie) |
+| QR Engine | html5-qrcode (scan) + qrcode (generate) |
+| Styling | Vanilla CSS (dark theme, glassmorphism) |
+| Deploy | Vercel (Serverless) |
 
-### 2.2 Proposed Flow
+---
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Member
-    actor Trainer
-    participant System
+## Instalasi & Setup Lokal
 
-    Member->>System: Buka app & generate QR
-    Note over System: Buat token CSPRNG (TTL 30s)
-    System-->>Member: Return token
-    Note over Member: Tampilkan QR di layar
+### Prasyarat
 
-    Trainer->>System: Scan QR Member
-    Note over System: Validasi token & status
-    Note over System: Validasi relasi Trainer-Member
-    Note over System: Catat attendance & kurangi sisa sesi
-    System-->>Trainer: Konfirmasi check-in sukses
-    System-->>Member: Dashboard terupdate (real-time)
+- Node.js 18+
+- PostgreSQL (atau akun Supabase gratis)
+- Git
+
+### Langkah
+
+```bash
+# 1. Clone repository
+git clone https://github.com/fahmibastari/ptms-pwa.git
+cd ptms-pwa/web
+
+# 2. Install dependencies
+npm install
+
+# 3. Konfigurasi environment
+cp .env.example .env
+# Edit .env dan isi variabel (lihat bagian Environment Variables)
+
+# 4. Generate Prisma Client & migrasi database
+npx prisma generate
+npx prisma db push
+
+# 5. Jalankan development server
+npm run dev
 ```
 
+Buka `http://localhost:3000` di browser. Anda akan otomatis diarahkan ke `/login`.
+
 ---
 
-## 3. User Types & Permissions
+## Struktur Role & Hak Akses
 
-### 3.1 Role Matrix
+Sistem PTMS memiliki **3 role utama** dengan hak akses yang berbeda:
 
-| Capability | Admin | Trainer | Member |
+| Fitur / Menu | Admin | Trainer | Member |
 |---|:---:|:---:|:---:|
-| Kelola user / trainer / member | ✅ | ❌ | ❌ |
-| Kelola paket & pembayaran | ✅ | ❌ | ❌ (read own) |
-| Dashboard & laporan global | ✅ | ❌ | ❌ |
-| Scan QR & catat attendance | ✅ | ✅ | ❌ |
-| Lihat member yang di-assign | ✅ | ✅ | ❌ |
-| Tulis session notes | ✅ | ✅ | ❌ |
-| Tampilkan QR check-in | ❌ | ❌ | ✅ |
-| Lihat attendance & progress sendiri | ✅ | ❌ | ✅ |
-| Lihat revenue pribadi | ✅ | ✅ (opsional) | ❌ |
-
-### 3.2 Role Descriptions
-
-**Admin** - Hak akses penuh terhadap seluruh modul: user management, paket, pembayaran, dashboard, dan laporan.
-
-**Trainer** - Operasional harian: scan QR member yang di-assign, lihat attendance, tulis session notes, dan (opsional) lihat revenue pribadi.
-
-**Member** - Self-service: tampilkan QR, lihat attendance history, trainer aktif, paket aktif, pembayaran, dan progress.
+| Dashboard Overview | ✅ (statistik global) | ✅ (statistik pribadi) | ✅ (statistik pribadi) |
+| Manajemen User & Role | ✅ | ❌ | ❌ |
+| Master Paket Latihan | ✅ | ❌ | ❌ |
+| Langganan & Kuota Member | ✅ | ❌ | ❌ |
+| QR Absensi — Scanner | ❌ | ✅ | ❌ |
+| QR Absensi — Generate QR | ❌ | ❌ | ✅ |
+| Sesi Latihan (Riwayat) | ✅ (semua data) | ✅ (data sendiri) | ✅ (data sendiri) |
+| Audit Log | ✅ | ❌ | ❌ |
+| Role Switcher | ✅ (jika multi-role) | ✅ (jika multi-role) | ✅ (jika multi-role) |
+| Logout | ✅ | ✅ | ✅ |
 
 ---
 
-## 4. Multi-Role System
+## 🔴 Panduan Role: Admin
 
-### 4.1 Requirement
+Admin memiliki akses penuh ke seluruh sistem. Berikut adalah panduan operasional lengkap.
 
-Satu akun dapat memiliki **multiple roles secara bersamaan**.
+### Menu Navigasi Admin
 
-```mermaid
-graph TD
-    subgraph Users
-        U1[Rigen]
-        U2[Indra]
-        U3[Admin User]
-    end
-
-    subgraph Roles
-        R_ADMIN[ADMIN]
-        R_TRAINER[TRAINER]
-        R_MEMBER[MEMBER]
-    end
-
-    U1 --> R_TRAINER
-    U1 --> R_MEMBER
-    U2 --> R_TRAINER
-    U2 --> R_MEMBER
-    U3 --> R_ADMIN
-```
-
-### 4.2 Design Decision
-
-| Decision | Rationale |
-|---|---|
-| Role **tidak** disimpan di tabel `User` | Mendukung multi-role tanpa kolom boolean yang rigid |
-| Role disimpan di tabel `UserRole` | Normalized, extensible, dengan unique constraint per user-role pair |
-| Active role disimpan di **session context** | UI dan authorization berjalan berdasarkan role yang sedang aktif |
-
-### 4.3 Role Switching Flow
-
-```mermaid
-flowchart TD
-    A[User Login] --> B[Load all roles from UserRole]
-    B --> C[User selects activeRole or defaults to primary]
-    C --> D[Save activeRole in server-side session cookie]
-    D --> E[Validate all incoming requests]
-    E -->|Has Role & ActiveRole matches endpoint| F[Allow Request]
-    E -->|Mismatched activeRole or missing privilege| G[403 Forbidden]
-```
-
-### 4.4 Multi-Role Rules (Wajib Diimplementasi)
-
-| Rule | Enforcement |
-|---|---|
-| Endpoint trainer hanya bisa diakses jika `activeRole = TRAINER` | Middleware / server guard |
-| Endpoint member hanya bisa diakses jika `activeRole = MEMBER` | Middleware / server guard |
-| User dengan role TRAINER + MEMBER tidak boleh self-check-in | Block jika `trainerId === memberId` pada scan |
-| Penambahan role ADMIN hanya oleh ADMIN | Server-side validation |
-| `trainerId` harus user yang punya role TRAINER | FK + application guard |
-| `memberId` harus user yang punya role MEMBER | FK + application guard |
-
----
-
-## 5. High-Level Architecture
-
-```mermaid
-flowchart TD
-    subgraph ClientLayer [Client Layer - PWA]
-        C[Android / iPhone Browser]
-        SW[Service Worker - Offline Shell]
-        QR[QR Engine - Display/Scan]
-    end
-
-    subgraph AppLayer [Application Layer - Next.js 16 App Router]
-        SC[Server Components - SSR/SSG]
-        SA[Server Actions - Form Mutations]
-        RH[Route Handlers - REST API]
-        MW[Middleware - Auth & RBAC Guards]
-    end
-
-    subgraph CoreServices [Core Services]
-        SAUTH[Supabase Auth - Identity]
-        PRISMA[Prisma ORM - Data Access]
-    end
-
-    subgraph DbLayer [Data Layer]
-        DB[(Supabase PostgreSQL)]
-    end
-
-    C -->|HTTPS / WSS| MW
-    MW --> SC
-    MW --> SA
-    MW --> RH
-
-    SA --> SAUTH
-    RH --> SAUTH
-    
-    SC --> PRISMA
-    SA --> PRISMA
-    RH --> PRISMA
-
-    PRISMA -->|Connection Pooler pgBouncer| DB
-```
-
-### 5.1 Layer Responsibilities
-
-| Layer | Responsibility |
-|---|---|
-| Client (PWA) | UI, QR generate/display, QR scan, offline shell |
-| Middleware | Session validation, role check, rate limit entry |
-| Server Actions | Form mutations dengan type-safe contracts |
-| Route Handlers | REST API untuk operasi kompleks / third-party |
-| Prisma | Database access, transactions, type generation |
-| Supabase Auth | Identity, password hashing, session, email verification |
-
-### 5.2 Connection Pooling (Wajib untuk Serverless)
-
-> Vercel = serverless functions. Setiap invocation berpotensi membuka koneksi baru ke PostgreSQL. Supabase free/pro tier memiliki limit **60 concurrent connections**.
-
-| Strategy | Implementation |
-|---|---|
-| Supabase Pooler | Gunakan connection string port `6543` (pgBouncer), bukan `5432` |
-| Prisma datasource | Set `?pgbouncer=true&connection_limit=5` di DATABASE_URL |
-| Alternative | Prisma Accelerate (managed connection pool) |
-
-```text
-# ❌ Direct connection (akan habiskan pool)
-DATABASE_URL="postgresql://...@db.xxx.supabase.co:5432/postgres"
-
-# ✅ Pooled connection (wajib untuk Vercel)
-DATABASE_URL="postgresql://...@db.xxx.supabase.co:6543/postgres?pgbouncer=true&connection_limit=5"
-```
-
----
-
-## 6. Technology Stack
-
-### 6.1 Stack Overview
-
-| Layer | Technology | Purpose |
+| Menu | Path | Fungsi |
 |---|---|---|
-| Framework | Next.js 16, React 19, TypeScript | Full-stack app |
-| Styling | Tailwind CSS, Shadcn UI | UI components |
-| Backend | Server Actions, Route Handlers | API & mutations |
-| Database | PostgreSQL (Supabase) | Persistent storage |
-| ORM | Prisma | Type-safe DB access |
-| Auth | Supabase Auth | Identity management |
-| Validation | Zod, React Hook Form | Input validation |
-| State | Zustand (UI), TanStack Query (server) | Client state |
-| QR | html5-qrcode | Camera-based scanning |
-| Deploy | Vercel | Hosting & CI/CD |
-
-### 6.2 Stack Decision Notes
-
-| Topic | Decision |
-|---|---|
-| Supabase Auth + Prisma | Auth di Supabase; data di PostgreSQL via Prisma. Perlu sync `auth.users.id` ↔ `User.id` |
-| Server Actions vs Route Handlers | Server Actions untuk form/UI mutations; Route Handlers untuk API yang butuh REST semantics |
-| TanStack Query vs Zustand | TanStack Query untuk server state (cache, refetch); Zustand hanya untuk UI state (active role, modal) |
+| Overview | `/dashboard` | Statistik: total user, trainer aktif, absensi hari ini, sesi bulan ini |
+| Manajemen User | `/dashboard/users` | Kelola role user, master paket, dan langganan member |
+| Sesi Latihan | `/dashboard/sessions` | Lihat semua riwayat absensi seluruh member & trainer |
+| Audit Log | `/dashboard/logs` | Riwayat aktivitas: perubahan role, verifikasi QR |
 
 ---
 
-## 7. Core Modules
+### A1. Dashboard Overview (Admin)
 
-| Module | Features |
+**Path:** `/dashboard`
+
+Saat login sebagai Admin, dashboard menampilkan 4 kartu statistik:
+
+| Kartu | Data |
 |---|---|
-| **Authentication** | Register, login, logout, forgot password |
-| **User Management** | Profile, avatar, contact information |
-| **Role Management** | Add role, switch active role |
-| **Trainer-Member** | Assign, remove, view relationship |
-| **Attendance** | Generate QR, scan QR, history |
-| **Membership** | Package management, subscription management |
-| **Finance** | Payment recording, revenue, outstanding |
-| **Reporting** | Monthly, attendance, revenue reports |
+| Total Pengguna | Jumlah seluruh akun terdaftar di sistem |
+| Trainer Aktif | Jumlah user yang memiliki role TRAINER |
+| Absensi Hari Ini | Jumlah record attendance untuk tanggal hari ini |
+| Sesi Bulan Ini | Total sesi latihan tercatat dari awal bulan berjalan |
+
+Di bawah statistik terdapat **Panduan Administrator** yang menjelaskan alur kerja Admin.
 
 ---
 
-## 8. Database Design
+### A2. Manajemen User — Tab "User & Role"
 
-### 8.1 Entity Relationship Overview
+**Path:** `/dashboard/users` → Tab **User & Role**
 
-```mermaid
-erDiagram
-    User ||--|| Profile : has
-    User ||--o{ UserRole : has
-    User ||--o{ QrToken : generates
-    User ||--o{ TrainerMember : assigned
-    User ||--o{ Subscription : subscribes
-    User ||--o{ Attendance : records
-    User ||--o{ Payment : makes
-    User ||--o{ AuditLog : acts
-    Subscription }|--|| MembershipPlan : details
-    Attendance ||--|| SessionNote : contains
-    Attendance }|--|| Subscription : references
-```
+**Fungsi:** Mengatur role setiap pengguna terdaftar.
 
-### 8.2 Prisma Schema
+**Cara Menggunakan:**
 
-#### Enums
+1. Buka menu **Manajemen User** di sidebar.
+2. Pastikan Anda berada di tab **User & Role** (tab pertama).
+3. Anda akan melihat tabel seluruh pengguna beserta role mereka.
+4. Gunakan kolom **Cari nama atau email** untuk memfilter pengguna.
+5. Di kolom **Aksi**, terdapat 3 tombol per pengguna: `MEMBER`, `TRAINER`, `ADMIN`.
+   - **Tombol berwarna** = user sudah memiliki role tersebut. Klik untuk **mencabut**.
+   - **Tombol abu-abu** = user belum memiliki role tersebut. Klik untuk **memberikan**.
+6. Perubahan role akan langsung tersimpan dan tercatat di Audit Log.
 
-```prisma
-enum Role {
-  ADMIN
-  TRAINER
-  MEMBER
-}
-
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  EXPIRED
-  CANCELLED
-  SUSPENDED
-}
-
-enum PaymentMethod {
-  CASH
-  TRANSFER
-  QRIS
-  OTHER
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
-}
-
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  LATE
-  PERMISSION
-}
-```
-
-#### User
-
-```prisma
-model User {
-  id                String     @id @default(uuid())
-  email             String     @unique @db.VarChar(255)
-  password          String?    @db.VarChar(255)
-  phone             String?    @unique @db.VarChar(50)
-  isEmailVerified   Boolean    @default(false)
-  fullName          String
-  firstName         String?
-  lastName          String?
-  googleId          String?    @unique
-  githubId          String?    @unique
-  createdAt         DateTime   @default(now()) @db.Timestamp(6)
-  updatedAt         DateTime   @updatedAt @db.Timestamp(6)
-  passwordResetCode String?
-  resetCodeExpires  DateTime?
-  roles             UserRole[]
-  trainer           Trainer?
-  member            Member?
-  qrTokens          QrToken[]
-  auditLogs         AuditLog[]
-}
-```
-
-#### UserRole
-
-```prisma
-model UserRole {
-  id        Int      @id @default(autoincrement())
-  userId    String
-  role      Role
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, role])
-  @@index([userId])
-}
-```
-
-#### BlacklistedToken
-
-```prisma
-model BlacklistedToken {
-  id            String   @id @default(uuid())
-  token         String   @unique @db.VarChar(500)
-  reason        String?
-  blacklistedAt DateTime @default(now()) @db.Timestamp(6)
-  expiresAt     DateTime @db.Timestamp(6)
-}
-```
-
-#### LoginAttempt
-
-```prisma
-model LoginAttempt {
-  id        String   @id @default(uuid())
-  email     String   @db.VarChar(255)
-  ipAddress String   @db.VarChar(45)
-  userAgent String?
-  success   Boolean
-  failedAt  DateTime @default(now()) @db.Timestamp(6)
-}
-```
-
-#### Trainer
-
-```prisma
-model Trainer {
-  id                String       @id @default(uuid())
-  userId            String       @unique
-  assignedMemberIds String[]     @default([]) @db.Text
-  isActive          Boolean      @default(true)
-  bio               String?
-  experience        String?
-  specialization    String[]
-  sessionsCount     Int          @default(0)
-  createdAt         DateTime     @default(now()) @db.Timestamp(6)
-  updatedAt         DateTime     @updatedAt @db.Timestamp(6)
-
-  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  members           Member[]
-  trainings         Training[]
-  attendance        Attendance[]
-}
-```
-
-#### Member
-
-```prisma
-model Member {
-  id               String         @id @default(uuid())
-  userId           String         @unique
-  trainerId        String?
-  gender           Gender?
-  dateOfBirth      DateTime?
-  emergencyContact String?
-  emergencyPhone   String?
-  createdAt        DateTime       @default(now()) @db.Timestamp(6)
-  updatedAt        DateTime       @updatedAt @db.Timestamp(6)
-
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trainer          Trainer?       @relation(fields: [trainerId], references: [id], onDelete: SetNull)
-  memberships      Membership[]
-  attendance       Attendance[]
-  trainings        Training[]
-  subscriptions    Subscription[]
-  gymVisits        GymVisit[]
-}
-```
-
-#### Package
-
-```prisma
-model Package {
-  id             Int            @id @default(autoincrement())
-  name           String         @db.VarChar(100)
-  price          Decimal        @db.Decimal(10, 2)
-  sessions       Int
-  durationMonths Int
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now()) @db.Timestamp(6)
-  updatedAt      DateTime       @updatedAt @db.Timestamp(6)
-
-  memberships    Membership[]
-  subscriptions  Subscription[]
-}
-```
-
-#### Membership
-
-```prisma
-model Membership {
-  id                String             @id @default(uuid())
-  memberId          String
-  packageId         Int
-  startDate         DateTime           @db.Date
-  endDate           DateTime           @db.Date
-  status            SubscriptionStatus @default(ACTIVE)
-  remainingSessions Int
-  paymentStatus     PaymentStatus      @default(PENDING)
-  totalPaid         Decimal            @default(0) @db.Decimal(10, 2)
-  paymentDate       DateTime           @db.Date
-  paymentMethod     PaymentMethod?
-  paymentRef        String?
-  receiptUrl        String?
-  createdAt         DateTime           @default(now()) @db.Timestamp(6)
-  updatedAt         DateTime           @updatedAt @db.Timestamp(6)
-
-  member            Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  package           Package            @relation(fields: [packageId], references: [id])
-  attendance        Attendance[]
-}
-```
-
-#### Attendance
-
-```prisma
-model Attendance {
-  id           String               @id @default(uuid())
-  memberId     String
-  trainerId    String?
-  membershipId String?
-  date         DateTime             @db.Date
-  time         DateTime             @db.Time
-  checkInType  String?
-  checkOutType String?
-  status       AttendanceStatus     @default(ABSENT)
-  isLate       Boolean              @default(false)
-  notes        String?
-  createdAt    DateTime             @default(now()) @db.Timestamp(6)
-  updatedAt    DateTime             @updatedAt @db.Timestamp(6)
-
-  member       Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  trainer      Trainer?             @relation(fields: [trainerId], references: [id], onDelete: SetNull)
-  membership   Membership?          @relation(fields: [membershipId], references: [id])
-  session      Training?            @relation("TrainingSession")
-  sessionNote  TrainingSessionNote? @relation("SessionNote")
-}
-```
-
-#### Training
-
-```prisma
-model Training {
-  id            String               @id @default(uuid())
-  memberId      String
-  trainerId     String
-  startDate     DateTime             @db.Timestamp(6)
-  endDate       DateTime             @db.Timestamp(6)
-  totalSession  Int                  @default(1)
-  totalDuration Int                  @default(60) // minutes
-  attendanceId  String?              @unique
-  notes         String?
-  createdAt     DateTime             @default(now()) @db.Timestamp(6)
-  updatedAt     DateTime             @updatedAt @db.Timestamp(6)
-
-  member        Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  trainer       Trainer              @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  attendance    Attendance?          @relation("TrainingSession", fields: [attendanceId], references: [id])
-  sessionNote   TrainingSessionNote? @relation("SessionNote")
-}
-```
-
-#### TrainingSessionNote
-
-```prisma
-model TrainingSessionNote {
-  id           String      @id @default(uuid())
-  trainingId   String?     @unique
-  attendanceId String?     @unique
-  goal         String      @db.Text
-  execution    String      @db.Text
-  feedback     String      @db.Text
-  nextSteps    String      @db.Text
-  createdAt    DateTime    @default(now()) @db.Timestamp(6)
-  updatedAt    DateTime    @updatedAt @db.Timestamp(6)
-
-  training     Training?   @relation("SessionNote", fields: [trainingId], references: [id])
-  attendance   Attendance? @relation("SessionNote", fields: [attendanceId], references: [id])
-}
-```
-
-#### Subscription
-
-```prisma
-model Subscription {
-  id                String             @id @default(uuid())
-  memberId          String
-  packageId         Int
-  startDate         DateTime           @db.Date
-  endDate           DateTime           @db.Date
-  status            SubscriptionStatus @default(ACTIVE)
-  remainingSessions Int
-  createdAt         DateTime           @default(now()) @db.Timestamp(6)
-  updatedAt         DateTime           @updatedAt @db.Timestamp(6)
-
-  member            Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  package           Package            @relation(fields: [packageId], references: [id])
-}
-```
-
-#### QrToken
-
-```prisma
-model QrToken {
-  id        String   @id @default(uuid())
-  userId    String
-  token     String   @unique @db.VarChar(500)
-  expiresAt DateTime @db.Timestamp(6)
-  used      Boolean  @default(false)
-  usedAt    DateTime? @db.Timestamp(6)
-  usedBy    String?
-  createdAt DateTime @default(now()) @db.Timestamp(6)
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([token, expiresAt])
-  @@index([userId, createdAt])
-}
-```
-
-#### AuditLog
-
-```prisma
-model AuditLog {
-  id         String   @id @default(uuid())
-  actorId    String
-  action     String   @db.VarChar(100)
-  entityType String   @db.VarChar(100)
-  entityId   String?
-  metadata   Json?
-  createdAt  DateTime @default(now()) @db.Timestamp(6)
-
-  actor      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
-
-  @@index([actorId])
-  @@index([entityType, entityId])
-  @@index([createdAt])
-}
-```
-
-#### GymVisit
-
-```prisma
-model GymVisit {
-  id        String    @id @default(uuid())
-  memberId  String
-  checkIn   DateTime  @default(now()) @db.Timestamp(6)
-  checkOut  DateTime? @db.Timestamp(6)
-
-  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
-
-  @@index([memberId])
-  @@index([checkIn])
-}
-```
-```
-
-### 8.3 Critical Database Constraints
-
-| Constraint | Purpose |
-|---|---|
-| `@@unique([userId, role])` | Mencegah duplikasi role |
-| `@@unique([trainerId, memberId])` | Mencegah duplikasi assignment |
-| FK ke `User` di semua entitas | Integritas referensial |
-| `subscriptionId` di `Attendance` | Audit trail sisa sesi yang dikurangi |
-| Transaction atomic pada check-in | Attendance + decrement session + mark token used harus satu transaksi |
+**Contoh Skenario:**
+> Trainer bernama "Rigen" perlu merangkap sebagai Admin.
+> 1. Cari "Rigen" di search bar.
+> 2. Klik tombol `+ ADMIN` di baris Rigen.
+> 3. Selesai. Rigen sekarang memiliki role TRAINER + ADMIN.
 
 ---
 
-## 9. Attendance Flow
+### A3. Manajemen User — Tab "Master Paket"
 
-### 9.1 Generate QR (Member)
+**Path:** `/dashboard/users` → Tab **Master Paket**
 
-```mermaid
-flowchart TD
-    A[Member opens app with activeRole = MEMBER] --> B[POST /api/qr/generate]
-    B --> C["Create QrToken (CSPRNG 256-bit hex, TTL 30s, used = false)"]
-    C --> D[Return token]
-    D --> E[Render QR on Member screen]
-    E --> F[Auto-refresh every 25 seconds before expiry]
-```
+**Fungsi:** Membuat dan mengelola katalog paket latihan yang tersedia di gym.
 
-### 9.2 Scan QR (Trainer)
+**Cara Menggunakan:**
 
-```mermaid
-flowchart TD
-    Start[Trainer scans QR with activeRole = TRAINER] --> Verify["POST /api/qr/verify { token }"]
-    
-    Verify --> CheckToken{Validation Checks}
-    CheckToken -->|Token Not Found| E404[404 Not Found]
-    CheckToken -->|Token Expired| E410[410 Gone]
-    CheckToken -->|Token Already Used| E409[409 Conflict]
-    CheckToken -->|Trainer Not Assigned to Member| E403_1[403 Forbidden]
-    CheckToken -->|Self Check-in| E403_2[403 Forbidden]
-    CheckToken -->|No Active Subscription| E422[422 Unprocessable Entity]
-    
-    CheckToken -->|Valid| Tx[BEGIN TRANSACTION]
-    
-    Tx --> S1["SELECT ... FOR UPDATE pada QrToken"]
-    S1 --> S2[INSERT Attendance]
-    S2 --> S3[UPDATE Subscription remainingSession - 1]
-    S3 --> S4[UPDATE QrToken used = true, usedBy = trainerId]
-    S4 --> S5[INSERT AuditLog]
-    
-    S5 --> Commit[COMMIT]
-    Commit --> Res[Return Attendance Record]
-```
+1. Klik tab **Master Paket** (tab kedua).
+2. Di sisi kiri, isi formulir **Tambah Master Paket**:
+   - **Nama Paket**: Nama deskriptif (contoh: "Paket 12 Sesi PT Premium")
+   - **Harga (Rp)**: Harga paket dalam Rupiah (contoh: 1500000)
+   - **Jumlah Sesi**: Berapa kali latihan yang didapat (contoh: 12)
+   - **Masa Aktif (Bulan)**: Durasi berlaku paket (contoh: 2)
+3. Klik **Simpan Master Paket**.
+4. Paket akan muncul di tabel sebelah kanan.
+5. Untuk menghapus paket, klik ikon 🗑️ di kolom Aksi.
 
-### 9.3 Session Reduction Rules
-
-| Kondisi | Behavior / Business Rule |
-|---|---|
-| `remainingSession > 0` | Decrement 1, status tetap ACTIVE |
-| `remainingSession = 1` → 0 | Decrement, set status EXPIRED |
-| `totalSession = null` (unlimited) | Tidak decrement, hanya catat attendance |
-| Multiple ACTIVE subscriptions | Dikurangi dari subscription dengan `endDate` terdekat (earliest expiry first) |
-| Double Scan Prevention | Maksimal 1 check-in per 4 jam untuk member-trainer pair yang sama (dapat di-bypass oleh Admin) |
-
-### 9.4 Gym Visit Tracking Flow
-
-Selain absensi latihan dengan Personal Trainer, sistem juga mencatat kunjungan harian member ke fasilitas gym (Gym Visit). Berbeda dengan absensi PT, Gym Visit tidak mengurangi sisa sesi latihan member.
-
-```mermaid
-flowchart TD
-    A[Member scan QR scanner di resepsionis / gate] --> B[POST /api/visits/checkin]
-    B --> C{Cek Subscription Aktif}
-    C -->|Tidak Ada Subscription Aktif| D[403 Forbidden - Membership Expired]
-    C -->|Ada Subscription Aktif| E[BEGIN TRANSACTION]
-    E --> F[INSERT GymVisit checkIn = NOW]
-    F --> G[COMMIT]
-    G --> H[Open Gate / Log Kunjungan Sukses]
-```
+> ⚠️ **Catatan:** Paket yang sedang digunakan oleh member tidak bisa dihapus.
 
 ---
 
-## 10. API Design
+### A4. Manajemen User — Tab "Langganan Member"
 
-### 10.1 Conventions
+**Path:** `/dashboard/users` → Tab **Langganan Member**
 
-| Convention | Standard |
-|---|---|
-| Auth | httpOnly session cookie via Supabase Auth |
-| Role context | **Server-side session only** - `activeRole` dibaca dari session store / signed JWT claim, **bukan** dari client header |
-| Pagination | `?page=1&limit=20` |
-| Error format | `{ "error": { "code": "...", "message": "..." } }` |
-| Success format | `{ "data": ... }` |
-| Timestamps | Semua dalam UTC. Client convert ke timezone lokal (WIB) untuk display |
+**Fungsi:** Mengaktifkan paket latihan untuk member dan mengelola kuota sesi mereka.
 
-> **⚠️ PENTING:** Jangan pernah membaca `activeRole` dari HTTP header (misal `X-Active-Role`). Header dikontrol client - siapapun bisa mengirim `X-Active-Role: ADMIN` via curl dan mendapat akses penuh. Role context **harus** dari server-side session yang di-sign oleh server.
+**Cara Menggunakan:**
 
-### 10.2 Endpoints
+#### Mengaktifkan Paket untuk Member:
+1. Klik tab **Langganan Member** (tab ketiga).
+2. Di sisi kiri, isi formulir **Aktifkan Paket Member**:
+   - **Pilih Member**: Dropdown berisi semua user ber-role MEMBER.
+   - **Pilih Paket Master**: Dropdown berisi paket yang sudah dibuat di tab Master Paket.
+3. Klik **Aktifkan Langganan**.
+4. Sistem akan:
+   - Menonaktifkan langganan aktif sebelumnya (jika ada).
+   - Membuat langganan baru dengan kuota sesi sesuai paket.
+   - Menghitung tanggal kadaluarsa otomatis.
 
-#### Auth
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| POST | `/api/auth/register` | Public | Register user baru |
-| POST | `/api/auth/login` | Public | Login |
-| POST | `/api/auth/logout` | Auth | Logout |
-
-#### User
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| GET | `/api/users/me` | Auth | Profil user + roles |
-| PATCH | `/api/users/me` | Auth | Update profil |
-
-#### Role
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| GET | `/api/roles` | Auth | List roles user |
-| POST | `/api/roles/switch` | Auth | Switch active role |
-| POST | `/api/roles` | Admin | Assign role ke user |
-| DELETE | `/api/roles/:id` | Admin | Hapus role user |
-
-#### Trainer-Member
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| GET | `/api/trainer-members` | Admin, Trainer | List relasi |
-| POST | `/api/trainer-members` | Admin | Assign member ke trainer |
-| DELETE | `/api/trainer-members/:id` | Admin | Hapus relasi |
-
-#### Attendance
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| POST | `/api/attendance/checkin` | Trainer | Scan & check-in (via QR verify) |
-| GET | `/api/attendance/history` | All | History (scoped by role) |
-
-#### QR
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| POST | `/api/qr/generate` | Member | Generate dynamic token |
-| POST | `/api/qr/verify` | Trainer | Verify & process check-in |
-
-#### Payment
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| POST | `/api/payments` | Admin | Catat pembayaran |
-| GET | `/api/payments` | Admin, Member | List pembayaran (scoped) |
-
-#### Membership
-
-| Method | Endpoint | Role | Description |
-|---|---|---|---|
-| GET | `/api/plans` | Admin | List paket |
-| POST | `/api/plans` | Admin | Buat paket |
-| GET | `/api/subscriptions` | Admin, Member | List subscription |
-| POST | `/api/subscriptions` | Admin | Buat subscription |
+#### Mengelola Kuota Sesi:
+- Di tabel sebelah kanan, setiap member menampilkan:
+  - **Paket Aktif**: Nama paket yang sedang berjalan.
+  - **Kuota Sesi**: Sisa sesi latihan dengan tombol **`-`** dan **`+`**.
+  - **Masa Berlaku**: Tanggal kadaluarsa paket.
+- Klik **`+`** untuk menambah sesi (misal: bonus sesi, koreksi data).
+- Klik **`-`** untuk mengurangi sesi secara manual.
+- Jika kuota mencapai **0**, status langganan otomatis menjadi `EXPIRED`.
 
 ---
 
-## 11. Security Architecture
+### A5. Sesi Latihan (Admin View)
 
-### 11.1 Authentication
+**Path:** `/dashboard/sessions`
 
-| Aspect | Implementation |
+Admin melihat **seluruh** data kehadiran di sistem, meliputi:
+
+| Kolom | Isi |
 |---|---|
-| Provider | Supabase Auth |
-| Password | Hashed by Supabase (bcrypt), tidak disimpan di app |
-| Session | JWT + refresh token, managed by Supabase |
-| Email | Verification on register (recommended) |
+| Tanggal & Waktu | Kapan check-in dilakukan |
+| Member | Nama dan email member |
+| Trainer | Nama trainer yang memverifikasi |
+| Metode | `QR_SCAN` atau `MANUAL` |
+| Status | `PRESENT` (Hadir) |
 
-### 11.2 Authorization (RBAC)
+---
 
-```text
-ADMIN
-  └─ Full access semua resource
+### A6. Audit Log
 
-TRAINER (activeRole = TRAINER)
-  └─ Hanya member yang di-assign via TrainerMember
-  └─ Hanya attendance & notes yang dibuat sendiri
+**Path:** `/dashboard/logs`
 
-MEMBER (activeRole = MEMBER)
-  └─ Hanya data milik sendiri (profile, subscription, payment, attendance)
-```
+Menampilkan 100 log terbaru dari aktivitas sistem. Setiap log mencatat:
 
-**Enforcement layers:**
-
-1. **Middleware** - Validasi session + active role
-2. **Server Action / Route Handler** - Resource-level authorization
-3. **Database transaction** - Row-level check sebelum mutation
-
-### 11.3 Dynamic QR Security
-
-| Threat | Mitigation |
+| Kolom | Isi |
 |---|---|
-| Static QR forgery | QR hanya berisi `{ "token": "uuid" }`, bukan memberId |
-| Replay attack | Single-use token (`used = true`) |
-| Token theft (30s window) | Short TTL (30 detik), auto-regenerate |
-| Race condition (double scan) | `SELECT FOR UPDATE` dalam transaction |
-| Unauthorized trainer | Validasi TrainerMember relationship |
-| Self check-in | Block `trainerId === memberId` |
+| Waktu | Timestamp aktivitas (format: dd MMM yyyy, HH:mm:ss) |
+| Pelaku (Actor) | Siapa yang melakukan aksi |
+| Aktivitas | Jenis aksi: `ADD_ROLE`, `REMOVE_ROLE`, `VERIFY_QR` |
+| Detail Metadata | Informasi tambahan (nama member, sisa sesi, role yang diubah) |
 
-### 11.4 Additional Security Measures
+**Aktivitas yang dicatat:**
+- `ADD_ROLE` — Saat Admin memberikan role baru ke user.
+- `REMOVE_ROLE` — Saat Admin mencabut role dari user.
+- `VERIFY_QR` — Saat Trainer berhasil memverifikasi QR absensi member.
 
-| Measure | Scope |
-|---|---|
-| HTTPS only | Semua komunikasi |
-| Rate limiting | `/api/auth/login`, `/api/qr/generate`, `/api/qr/verify` - 5–10 req/min per IP/user |
-| Audit logging | LOGIN, LOGOUT, PAYMENT_CREATED, ATTENDANCE_CREATED, USER_UPDATED, ROLE_ADDED |
-| Soft delete | User, MembershipPlan - preserve audit trail |
-| Input validation | Zod schema di setiap endpoint |
-| CSRF protection | Built-in Next.js Server Actions origin check |
-| Idempotency | Unique constraint + transaction pada attendance creation |
+---
 
-### 11.5 Rate Limiting Matrix
+## 🟣 Panduan Role: Trainer
 
-| Endpoint | Limit | Key |
+Trainer bertanggung jawab untuk memverifikasi kehadiran member melalui QR scan.
+
+### Menu Navigasi Trainer
+
+| Menu | Path | Fungsi |
 |---|---|---|
-| `POST /api/auth/login` | 5/min | IP |
-| `POST /api/qr/generate` | 10/min | userId |
-| `POST /api/qr/verify` | 10/min | userId |
-| `POST /api/attendance/checkin` | 10/min | userId |
-| `POST /api/auth/register` | 3/min | IP |
+| Overview | `/dashboard` | Statistik: member dibimbing, sesi bulan ini, total sesi |
+| QR Absensi | `/dashboard/attendance` | Scanner QR untuk verifikasi kehadiran member |
+| Sesi Latihan | `/dashboard/sessions` | Riwayat sesi yang diverifikasi oleh Trainer ini |
 
 ---
 
-## 12. PWA Requirements
+### T1. Dashboard Overview (Trainer)
 
-### 12.1 MVP Features
+**Path:** `/dashboard`
 
-| Feature | Priority |
+Dashboard Trainer menampilkan 3 kartu statistik:
+
+| Kartu | Data |
 |---|---|
-| Installable (manifest.json) | P0 |
-| Responsive layout | P0 |
-| App icon & splash screen | P0 |
-| Offline shell (cached layout) | P1 |
-| Service worker | P1 |
+| Member Dibimbing | Jumlah member yang di-assign ke Trainer ini |
+| Sesi Scan Bulan Ini | Jumlah verifikasi QR yang dilakukan bulan ini |
+| Total Sesi Sukses | Total keseluruhan verifikasi yang pernah dilakukan |
 
-### 12.2 Future Features
-
-| Feature | Notes |
-|---|---|
-| Push notification | Session reminder, payment due |
-| Background sync | **Hati-hati**: bertentangan dengan dynamic QR security |
-| Offline attendance queue | Perlu redesign token model jika diimplementasi |
+Di bawahnya terdapat:
+- **Aktivitas Check-in Terbaru**: 5 riwayat scan terakhir (nama member, email, waktu).
+- **Pemberitahuan Trainer**: Panduan singkat cara menggunakan QR scanner.
 
 ---
 
-## 13. Dashboard Metrics
+### T2. QR Absensi — Scanner (Trainer)
 
-### Admin
+**Path:** `/dashboard/attendance`
 
-| Metric | Source |
+**Fungsi:** Memindai QR Code member untuk mencatat kehadiran dan memotong kuota sesi.
+
+**Cara Menggunakan:**
+
+#### Mode Kamera Scanner:
+1. Buka menu **QR Absensi** di sidebar.
+2. Tab **Kamera Scanner** akan aktif secara default.
+3. Klik **Aktifkan Kamera** jika kamera belum menyala.
+4. Arahkan kamera ke QR Code yang ditampilkan di layar HP member.
+5. Sistem akan otomatis:
+   - Mendeteksi dan membaca token QR.
+   - Memvalidasi token (belum expired, belum dipakai, member punya kuota).
+   - Mencatat kehadiran di database.
+   - Mengurangi 1 sesi dari kuota member.
+   - Mencatat aksi di Audit Log.
+6. Jika **berhasil**: Muncul layar hijau ✅ "Verifikasi Sukses" dengan info nama member dan sisa sesi.
+7. Klik **Scan Kembali** untuk memindai member berikutnya.
+8. Jika **gagal**: Muncul layar merah ⚠️ dengan pesan error spesifik. Klik **Coba Lagi**.
+
+> 💡 **Penting:** Setelah scan berhasil, Trainer **tetap di halaman scanner** agar bisa langsung melanjutkan scan member lain tanpa harus navigasi ulang.
+
+#### Mode Input Manual:
+1. Klik tab **Input Manual**.
+2. Minta member untuk menyebutkan/menyalin token QR mereka.
+3. Tempel token di field input.
+4. Klik tombol kirim (→).
+5. Proses validasi sama seperti mode kamera.
+
+**Kemungkinan Error Saat Scan:**
+
+| Error | Penyebab |
 |---|---|
-| Total member | `UserRole WHERE role = MEMBER` |
-| Total trainer | `UserRole WHERE role = TRAINER` |
-| Total revenue | `SUM(Payment.amount)` |
-| Active subscriptions | `Subscription WHERE status = ACTIVE` |
-| Attendance today | `Attendance WHERE checkedInAt = today` |
-
-### Trainer
-
-| Metric | Source |
-|---|---|
-| Total assigned member | `TrainerMember WHERE trainerId = me AND isActive` |
-| Attendance today | `Attendance WHERE trainerId = me AND today` |
-| Attendance this month | `Attendance WHERE trainerId = me AND this month` |
-
-### Member
-
-| Metric | Source |
-|---|---|
-| Remaining session | `Subscription.remainingSession WHERE status = ACTIVE` |
-| Attendance history | `Attendance WHERE memberId = me` |
-| Active trainer | `TrainerMember WHERE memberId = me AND isActive` |
-| Active package | `Subscription JOIN MembershipPlan WHERE status = ACTIVE` |
+| Token tidak ditemukan | QR sudah expired atau salah ketik |
+| Token sudah digunakan | QR sudah pernah di-scan sebelumnya |
+| Token kadaluarsa | QR sudah melewati batas waktu 30 detik |
+| Member tidak memiliki kuota | Sisa sesi = 0, perlu perpanjangan oleh Admin |
 
 ---
 
-## 14. Development Roadmap
+### T3. Sesi Latihan (Trainer View)
 
-| Phase | Scope | Estimate | Dependency |
-|---|---|---|---|
-| **1 - Foundation & Security** | Auth, User, Role, Audit Log setup, Supabase sync | 4 days | - |
-| **2 - Trainer-Member** | Assignment module | 2 days | Phase 1 |
-| **3 - Attendance & CSPRNG QR** | Dynamic QR (CSPRNG), scan check-in, atomic transactions | 5 days | Phase 2 |
-| **4 - Membership** | Plans, subscriptions | 3 days | Phase 1 |
-| **5 - Payment** | Payment recording, outstanding tracking | 3 days | Phase 4 |
-| **6 - Dashboard & Metrics** | Role-based metrics, analytics query optimization | 3 days | Phase 3, 5 |
-| **7 - Security Hardening** | Rate limits, session revocation UI, CORS/CSP | 2 days | Phase 3 |
-| **8 - PWA Shell** | Manifest, service worker, performance optimization | 2 days | Phase 6 |
+**Path:** `/dashboard/sessions`
 
-**Total MVP Duration: 24 Working Days**
+Menampilkan riwayat kehadiran **hanya untuk member yang di-scan oleh Trainer ini**. Kolom yang ditampilkan sama dengan Admin view.
 
 ---
 
-## 15. Future Roadmap
+## 🟢 Panduan Role: Member
 
-| Version | Features |
+Member menggunakan sistem untuk menampilkan QR Code saat datang latihan.
+
+### Menu Navigasi Member
+
+| Menu | Path | Fungsi |
+|---|---|---|
+| Overview | `/dashboard` | Statistik: sisa kuota, latihan bulan ini, total kehadiran |
+| QR Absensi | `/dashboard/attendance` | Generate dan tampilkan QR Code untuk di-scan Trainer |
+| Sesi Latihan | `/dashboard/sessions` | Riwayat kehadiran pribadi |
+
+---
+
+### M1. Dashboard Overview (Member)
+
+**Path:** `/dashboard`
+
+Dashboard Member menampilkan 3 kartu statistik:
+
+| Kartu | Data |
 |---|---|
-| **V2** | Trainer commissions, automated payment & session WhatsApp/Push reminders |
-| **V3** | Payment gateway integration (Midtrans / Xendit) |
-| **V4** | Progress & body measurement tracking metrics |
-| **V5** | Standalone Native Android & iOS applications |
-| **V6** | AI analytics, attendance forecasting, churn prediction models |
+| Sisa Kuota Sesi | Jumlah sesi latihan yang tersisa di paket aktif |
+| Latihan Bulan Ini | Berapa kali sudah latihan di bulan berjalan |
+| Total Kehadiran | Akumulasi kehadiran sepanjang waktu |
+
+Di bawahnya terdapat:
+- **Paket Aktif Anda**: Nama paket, tanggal kadaluarsa, dan progress bar kuota.
+- **Riwayat Kehadiran Anda**: 5 kehadiran terakhir (tanggal, hari, nama trainer).
 
 ---
 
-## 16. Security & Operational Policies
+### M2. QR Absensi — Generate QR (Member)
 
-### 16.1 Access Control & Authentication
-* **Role Verification:** Client-side role assertions (such as headers or unsecured cookie fields) are completely forbidden. The active user role context (`activeRole`) must be resolved exclusively on the server side using cryptographically signed claims or server-cached sessions.
-* **Role Switching Guard:** When switching roles, authorization states must be invalidated globally. Short-lived access tokens combined with server-side active role checking must block users from accessing cross-role endpoints.
-* **Administrative Privileges:** Admin role assignments are restricted to database migrations or existing Administrator updates logged directly to `AuditLog`.
+**Path:** `/dashboard/attendance`
 
-### 16.2 Infrastructure & Database Security
-* **Connection Pooling:** In serverless environments (Vercel), connections to PostgreSQL must go through Supabase's transaction pooler (pgBouncer) on port `6543`. Direct connection (port `5432`) is prohibited in the runtime configuration to prevent pool exhaustion.
-* **Row Level Security (RLS):** Application layer queries bypass RLS by design using the database client. Thus, authorization validation (checking relations and ownership) must be strictly implemented in Next.js Server Actions and API Route Handlers.
+**Fungsi:** Menampilkan QR Code dinamis yang harus di-scan oleh Trainer untuk mencatat kehadiran.
 
-### 16.3 Check-in Integrity
-* **Cryptographic Tokens:** Check-in QR codes must employ tokens generated using a cryptographically secure pseudo-random number generator (CSPRNG) with at least 256-bit entropy. Static identifiers are not permitted.
-* **Atomic Deduplication:** Scan verification must wrap QR token invalidation, attendance creation, and session decrement in a single database transaction using `SELECT FOR UPDATE` to completely eliminate race conditions and double check-ins.
+**Cara Menggunakan:**
 
-### 16.4 Data Consistency & Timezones
-* **Database Timezone:** All timestamps stored in the database must use the UTC timezone.
-* **Operational Timezones:** Query date boundaries (e.g., "today's attendance limits") must convert UTC timestamps to Western Indonesian Time (WIB, UTC+7) at the application server level before evaluating check-in limits.
-* **Data Pruning:** Generative transactional tables (`QrToken`) must be pruned weekly via an automated database cron script.
+1. Buka menu **QR Absensi** di sidebar.
+2. QR Code akan **otomatis ter-generate** saat halaman dibuka.
+3. Tunjukkan layar HP Anda ke Trainer.
+4. Trainer akan men-scan QR Code tersebut.
+
+**Mekanisme Keamanan QR:**
+
+| Aspek | Detail |
+|---|---|
+| Token | Dibuat secara kriptografis (CSPRNG 256-bit), bukan ID statis |
+| TTL (Time To Live) | 30 detik — QR otomatis expired |
+| Auto-Refresh | Setiap 30 detik, QR baru otomatis di-generate |
+| Single-Use | Setiap QR hanya bisa di-scan 1 kali |
+| Manual Refresh | Tombol "Perbarui Manual" tersedia di bawah countdown |
+
+**Feedback Real-time Setelah Di-scan:**
+
+Setelah Trainer berhasil men-scan QR Anda:
+1. Halaman QR akan **otomatis berubah** menjadi layar sukses ✅.
+2. Muncul pesan: *"Absensi Berhasil! Sisa sesi latihan Anda telah divalidasi oleh Trainer."*
+3. Setelah **3 detik**, Anda otomatis diarahkan kembali ke halaman **Dashboard**.
+
+> 💡 Mekanisme ini menggunakan *short-polling* setiap 2 detik untuk mendeteksi apakah QR Anda sudah di-scan.
 
 ---
 
-*End of Document - Version 3.0*
+### M3. Sesi Latihan (Member View)
+
+**Path:** `/dashboard/sessions`
+
+Menampilkan riwayat kehadiran **milik Anda sendiri**. Kolom: tanggal, waktu, nama trainer, metode check-in, dan status.
+
+---
+
+## Fitur Multi-Role & Role Switching
+
+### Konsep
+
+Satu akun bisa memiliki **lebih dari satu role** secara bersamaan. Contoh:
+- Rigen: **TRAINER** + **MEMBER**
+- Admin Gym: **ADMIN** + **TRAINER**
+- Super User: **ADMIN** + **TRAINER** + **MEMBER**
+
+### Cara Beralih Role
+
+1. Jika akun Anda memiliki lebih dari 1 role, di **header bar** (pojok kanan atas) akan muncul tombol-tombol role.
+2. Klik role yang ingin Anda aktifkan.
+3. Dashboard dan menu sidebar akan **langsung berubah** sesuai role yang dipilih.
+4. Role aktif menentukan:
+   - Menu apa saja yang muncul di sidebar.
+   - Data apa yang ditampilkan di dashboard.
+   - Fitur apa yang bisa diakses.
+
+### Aturan Multi-Role
+
+| Aturan | Detail |
+|---|---|
+| Akses menu terbatas | Hanya menu sesuai role aktif yang muncul |
+| Self check-in dilarang | Jika Anda Trainer + Member, Anda tidak bisa scan QR sendiri |
+| Penambahan role ADMIN | Hanya bisa dilakukan oleh ADMIN lain |
+
+---
+
+## Alur QR Absensi (End-to-End)
+
+Berikut alur lengkap proses absensi dari awal hingga selesai:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    PERSIAPAN (ADMIN)                             │
+│                                                                 │
+│  1. Admin membuat Master Paket (Tab Master Paket)               │
+│  2. Admin mengaktifkan paket untuk member (Tab Langganan)       │
+│  3. Member sekarang punya kuota sesi                            │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    SAAT LATIHAN                                  │
+│                                                                 │
+│  4. Member buka app → Menu QR Absensi                           │
+│  5. QR Code otomatis ter-generate (berlaku 30 detik)            │
+│  6. Member tunjukkan layar ke Trainer                           │
+│  7. Trainer buka app → Menu QR Absensi → Kamera Scanner         │
+│  8. Trainer arahkan kamera ke QR Code member                    │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    PROSES BACKEND (OTOMATIS)                    │
+│                                                                 │
+│  9.  Validasi token QR (tidak expired, belum dipakai)           │
+│  10. Validasi member punya kuota sesi aktif                     │
+│  11. BEGIN TRANSACTION:                                         │
+│      a. Tandai token QR sebagai "used"                          │
+│      b. Buat record Attendance baru                             │
+│      c. Kurangi remainingSessions member sebanyak 1             │
+│      d. Catat di AuditLog                                       │
+│  12. COMMIT TRANSACTION                                         │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    HASIL                                         │
+│                                                                 │
+│  13. Trainer: Layar hijau "Verifikasi Sukses" + info member     │
+│      → Klik "Scan Kembali" untuk lanjut scan member lain        │
+│  14. Member: Layar otomatis berubah "Absensi Berhasil!"         │
+│      → Auto-redirect ke Dashboard setelah 3 detik               │
+│  15. Dashboard member terupdate (sisa kuota berkurang 1)        │
+│  16. Admin bisa melihat log di Audit Log                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Deployment ke Vercel
+
+### Konfigurasi Wajib
+
+| Setting | Value |
+|---|---|
+| Framework Preset | **Next.js** |
+| Root Directory | **web** |
+| Build Command | `prisma generate && next build` (otomatis dari package.json) |
+| Node.js Version | 18.x atau 20.x |
+
+### Langkah Deploy
+
+1. Push code ke GitHub repository.
+2. Buka [vercel.com](https://vercel.com) → Import repository.
+3. Set **Root Directory** ke `web`.
+4. Set **Framework Preset** ke `Next.js`.
+5. Tambahkan semua environment variables (lihat bagian berikutnya).
+6. Klik **Deploy**.
+
+---
+
+## Environment Variables
+
+Buat file `.env` di folder `web/` dengan variabel berikut:
+
+```env
+# Supabase Auth
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+
+# Database (gunakan pooled connection untuk Vercel)
+DATABASE_URL="postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://user:pass@db.xxx.supabase.co:5432/postgres"
+```
+
+> ⚠️ **Penting:** Untuk deployment Vercel, gunakan port `6543` (pgBouncer) pada `DATABASE_URL`, bukan port `5432` langsung. Ini mencegah exhaustion connection pool pada environment serverless.
+
+---
+
+## FAQ & Troubleshooting
+
+### Q: Halaman menampilkan 404 setelah deploy di Vercel?
+**A:** Pastikan **Root Directory** diset ke `web` dan **Framework Preset** diset ke `Next.js` di dashboard Vercel.
+
+### Q: Member tidak bisa generate QR, muncul error "tidak memiliki paket aktif"?
+**A:** Admin harus mengaktifkan paket latihan untuk member tersebut melalui tab **Langganan Member** di halaman Manajemen User.
+
+### Q: QR Code expired terus?
+**A:** QR berlaku 30 detik dan auto-refresh. Pastikan koneksi internet stabil. Member juga bisa klik "Perbarui Manual" untuk generate QR baru.
+
+### Q: Trainer tidak bisa scan — kamera tidak muncul?
+**A:** Fitur kamera membutuhkan HTTPS. Di localhost, kamera berjalan normal. Di production, pastikan domain menggunakan HTTPS (Vercel otomatis menyediakan ini).
+
+### Q: Saya punya role Trainer + Member, bisa scan QR sendiri?
+**A:** Tidak. Sistem memblokir self check-in untuk menjaga integritas data absensi.
+
+### Q: Bagaimana cara menambah sesi member yang salah terpotong?
+**A:** Admin bisa menambah sesi secara manual melalui tab **Langganan Member** → klik tombol **`+`** di kolom Kuota Sesi member yang bersangkutan.
+
+### Q: Build error: "Cannot find module @prisma/client"?
+**A:** Pastikan script build di `package.json` adalah `prisma generate && next build`. Ini memastikan Prisma Client ter-generate sebelum Next.js melakukan kompilasi.
+
+### Q: Bagaimana cara install PWA di HP?
+**A:** Buka URL aplikasi di browser HP → Ketuk menu (⋮) → Pilih "Add to Home Screen" atau "Install App". Aplikasi akan muncul di home screen layaknya app native.
+
+---
+
+## Struktur Folder Proyek
+
+```
+ptms-pwa/
+├── SD_PTMS.md              # System Design Document (teknis)
+├── README.md               # Panduan operasional ini
+└── web/                    # Next.js application
+    ├── prisma/
+    │   └── schema.prisma   # Database schema
+    ├── src/
+    │   ├── app/
+    │   │   ├── login/      # Halaman login
+    │   │   ├── register/   # Halaman registrasi
+    │   │   ├── dashboard/  # Dashboard utama
+    │   │   │   ├── attendance/  # QR absensi (MemberQr + TrainerScanner)
+    │   │   │   ├── users/       # Manajemen user (Admin only)
+    │   │   │   ├── sessions/    # Riwayat sesi latihan
+    │   │   │   └── logs/        # Audit log (Admin only)
+    │   │   └── manifest.ts # PWA manifest
+    │   └── lib/
+    │       ├── actions/    # Server Actions (auth, qr, packages)
+    │       ├── prisma.ts   # Prisma client singleton
+    │       └── supabase/   # Supabase client helpers
+    └── package.json
+```
+
+---
+
+*Dokumen ini menjelaskan flow operasional PTMS Dev v1.0. Untuk dokumentasi teknis arsitektur dan database schema, lihat [SD_PTMS.md](./SD_PTMS.md).*
