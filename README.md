@@ -351,46 +351,45 @@ enum PaymentMethod {
   QRIS
   OTHER
 }
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  PERMISSION
+}
 ```
 
 #### User
 
 ```prisma
 model User {
-  id        String    @id // Sync dengan Supabase auth.users.id
-  email     String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  profile Profile?
-  roles   UserRole[]
-
-  trainerRelations TrainerMember[] @relation("TrainerRelations")
-  memberRelations  TrainerMember[] @relation("MemberRelations")
-  subscriptions    Subscription[]
-  attendances      Attendance[]    @relation("MemberAttendances")
-  trainedSessions  Attendance[]    @relation("TrainerAttendances")
-  payments         Payment[]
-  qrTokens         QrToken[]
-  auditLogs        AuditLog[]
-}
-```
-
-#### Profile
-
-```prisma
-model Profile {
-  id        String    @id @default(cuid())
-  userId    String    @unique
-  fullName  String
-  phone     String?
-  gender    Gender?
-  birthDate DateTime?
-  avatarUrl String?
-  address   String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String     @id @default(uuid())
+  email             String     @unique @db.VarChar(255)
+  password          String?    @db.VarChar(255)
+  phone             String?    @unique @db.VarChar(50)
+  isEmailVerified   Boolean    @default(false)
+  fullName          String
+  firstName         String?
+  lastName          String?
+  googleId          String?    @unique
+  githubId          String?    @unique
+  createdAt         DateTime   @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime   @updatedAt @db.Timestamp(6)
+  passwordResetCode String?
+  resetCodeExpires  DateTime?
+  roles             UserRole[]
+  trainer           Trainer?
+  member            Member?
+  qrTokens          QrToken[]
+  auditLogs         AuditLog[]
 }
 ```
 
@@ -398,78 +397,129 @@ model Profile {
 
 ```prisma
 model UserRole {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   userId    String
   role      Role
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamp(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, role])
   @@index([userId])
 }
 ```
 
-#### TrainerMember
+#### BlacklistedToken
 
 ```prisma
-model TrainerMember {
-  id        String    @id @default(cuid())
-  trainerId String
-  memberId  String
-  isActive  Boolean   @default(true)
-  startDate DateTime  @default(now())
-  endDate   DateTime?
-  createdAt DateTime  @default(now())
-  deletedAt DateTime? // soft delete support
-
-  trainer User @relation("TrainerRelations", fields: [trainerId], references: [id])
-  member  User @relation("MemberRelations", fields: [memberId], references: [id])
-
-  @@unique([trainerId, memberId])
-  @@index([trainerId])
-  @@index([memberId])
+model BlacklistedToken {
+  id            String   @id @default(uuid())
+  token         String   @unique @db.VarChar(500)
+  reason        String?
+  blacklistedAt DateTime @default(now()) @db.Timestamp(6)
+  expiresAt     DateTime @db.Timestamp(6)
 }
 ```
 
-#### MembershipPlan
+#### LoginAttempt
 
 ```prisma
-model MembershipPlan {
-  id           String    @id @default(cuid())
-  name         String
-  totalSession Int?      // null = unlimited
-  price        Decimal   @db.Decimal(12, 2)
-  description  String?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  deletedAt    DateTime? // soft delete support
-
-  subscriptions Subscription[]
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  email     String   @db.VarChar(255)
+  ipAddress String   @db.VarChar(45)
+  userAgent String?
+  success   Boolean
+  failedAt  DateTime @default(now()) @db.Timestamp(6)
 }
 ```
 
-#### Subscription
+#### Trainer
 
 ```prisma
-model Subscription {
-  id               String             @id @default(cuid())
-  memberId         String
-  planId           String
-  startDate        DateTime
-  endDate          DateTime?
-  remainingSession Int
-  status           SubscriptionStatus @default(ACTIVE)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  deletedAt        DateTime?          // soft delete support
+model Trainer {
+  id                String       @id @default(uuid())
+  userId            String       @unique
+  assignedMemberIds String[]     @default([]) @db.Text
+  isActive          Boolean      @default(true)
+  bio               String?
+  experience        String?
+  specialization    String[]
+  sessionsCount     Int          @default(0)
+  createdAt         DateTime     @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime     @updatedAt @db.Timestamp(6)
 
-  member     User           @relation(fields: [memberId], references: [id])
-  plan       MembershipPlan @relation(fields: [planId], references: [id])
-  attendances Attendance[]
-  payments   Payment[]
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members           Member[]
+  trainings         Training[]
+  attendance        Attendance[]
+}
+```
 
-  @@index([memberId, status])
+#### Member
+
+```prisma
+model Member {
+  id               String         @id @default(uuid())
+  userId           String         @unique
+  trainerId        String?
+  gender           Gender?
+  dateOfBirth      DateTime?
+  emergencyContact String?
+  emergencyPhone   String?
+  createdAt        DateTime       @default(now()) @db.Timestamp(6)
+  updatedAt        DateTime       @updatedAt @db.Timestamp(6)
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainer          Trainer?       @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  memberships      Membership[]
+  attendance       Attendance[]
+  trainings        Training[]
+  subscriptions    Subscription[]
+}
+```
+
+#### Package
+
+```prisma
+model Package {
+  id             Int            @id @default(autoincrement())
+  name           String         @db.VarChar(100)
+  price          Decimal        @db.Decimal(10, 2)
+  sessions       Int
+  durationMonths Int
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now()) @db.Timestamp(6)
+  updatedAt      DateTime       @updatedAt @db.Timestamp(6)
+
+  memberships    Membership[]
+  subscriptions  Subscription[]
+}
+```
+
+#### Membership
+
+```prisma
+model Membership {
+  id                String             @id @default(uuid())
+  memberId          String
+  packageId         Int
+  startDate         DateTime           @db.Date
+  endDate           DateTime           @db.Date
+  status            SubscriptionStatus @default(ACTIVE)
+  remainingSessions Int
+  paymentStatus     PaymentStatus      @default(PENDING)
+  totalPaid         Decimal            @default(0) @db.Decimal(10, 2)
+  paymentDate       DateTime           @db.Date
+  paymentMethod     PaymentMethod?
+  paymentRef        String?
+  receiptUrl        String?
+  createdAt         DateTime           @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime           @updatedAt @db.Timestamp(6)
+
+  member            Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  package           Package            @relation(fields: [packageId], references: [id])
+  attendance        Attendance[]
 }
 ```
 
@@ -477,53 +527,86 @@ model Subscription {
 
 ```prisma
 model Attendance {
-  id             String   @id @default(cuid())
-  memberId       String
-  trainerId      String
-  subscriptionId String
-  checkedInAt    DateTime @default(now())
-  createdAt      DateTime @default(now())
+  id           String               @id @default(uuid())
+  memberId     String
+  trainerId    String?
+  membershipId String?
+  date         DateTime             @db.Date
+  time         DateTime             @db.Time
+  checkInType  String?
+  checkOutType String?
+  status       AttendanceStatus     @default(ABSENT)
+  isLate       Boolean              @default(false)
+  notes        String?
+  createdAt    DateTime             @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime             @updatedAt @db.Timestamp(6)
 
-  member       User         @relation("MemberAttendances", fields: [memberId], references: [id])
-  trainer      User         @relation("TrainerAttendances", fields: [trainerId], references: [id])
-  subscription Subscription @relation(fields: [subscriptionId], references: [id])
-  sessionNote  SessionNote?
-
-  @@index([memberId, checkedInAt])
-  @@index([trainerId, checkedInAt])
+  member       Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainer      Trainer?             @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  membership   Membership?          @relation(fields: [membershipId], references: [id])
+  session      Training?            @relation("TrainingSession")
+  sessionNote  TrainingSessionNote? @relation("SessionNote")
 }
 ```
 
-#### SessionNote
+#### Training
 
 ```prisma
-model SessionNote {
-  id           String   @id @default(cuid())
-  attendanceId String   @unique
-  note         String
-  createdAt    DateTime @default(now())
+model Training {
+  id            String               @id @default(uuid())
+  memberId      String
+  trainerId     String
+  startDate     DateTime             @db.Timestamp(6)
+  endDate       DateTime             @db.Timestamp(6)
+  totalSession  Int                  @default(1)
+  totalDuration Int                  @default(60) // minutes
+  attendanceId  String?              @unique
+  notes         String?
+  createdAt     DateTime             @default(now()) @db.Timestamp(6)
+  updatedAt     DateTime             @updatedAt @db.Timestamp(6)
 
-  attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  member        Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  trainer       Trainer              @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  attendance    Attendance?          @relation("TrainingSession", fields: [attendanceId], references: [id])
+  sessionNote   TrainingSessionNote? @relation("SessionNote")
 }
 ```
 
-#### Payment
+#### TrainingSessionNote
 
 ```prisma
-model Payment {
-  id             String        @id @default(cuid())
-  memberId       String
-  subscriptionId String?
-  amount         Decimal       @db.Decimal(12, 2)
-  paidAt         DateTime
-  method         PaymentMethod
-  note           String?
-  createdAt      DateTime      @default(now())
+model TrainingSessionNote {
+  id           String      @id @default(uuid())
+  trainingId   String?     @unique
+  attendanceId String?     @unique
+  goal         String      @db.Text
+  execution    String      @db.Text
+  feedback     String      @db.Text
+  nextSteps    String      @db.Text
+  createdAt    DateTime    @default(now()) @db.Timestamp(6)
+  updatedAt    DateTime    @updatedAt @db.Timestamp(6)
 
-  member       User          @relation(fields: [memberId], references: [id])
-  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  training     Training?   @relation("SessionNote", fields: [trainingId], references: [id])
+  attendance   Attendance? @relation("SessionNote", fields: [attendanceId], references: [id])
+}
+```
 
-  @@index([memberId])
+#### Subscription
+
+```prisma
+model Subscription {
+  id                String             @id @default(uuid())
+  memberId          String
+  packageId         Int
+  startDate         DateTime           @db.Date
+  endDate           DateTime           @db.Date
+  status            SubscriptionStatus @default(ACTIVE)
+  remainingSessions Int
+  createdAt         DateTime           @default(now()) @db.Timestamp(6)
+  updatedAt         DateTime           @updatedAt @db.Timestamp(6)
+
+  member            Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  package           Package            @relation(fields: [packageId], references: [id])
 }
 ```
 
@@ -531,18 +614,18 @@ model Payment {
 
 ```prisma
 model QrToken {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
-  token     String   @unique
-  expiredAt DateTime
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime @db.Timestamp(6)
   used      Boolean  @default(false)
-  usedAt    DateTime?
-  usedBy    String?  // trainerId yang melakukan scan
-  createdAt DateTime @default(now())
+  usedAt    DateTime? @db.Timestamp(6)
+  usedBy    String?
+  createdAt DateTime @default(now()) @db.Timestamp(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([token, expiredAt])
+  @@index([token, expiresAt])
   @@index([userId, createdAt])
 }
 ```
@@ -551,20 +634,21 @@ model QrToken {
 
 ```prisma
 model AuditLog {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   actorId    String
-  action     String
-  entityType String
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(100)
   entityId   String?
   metadata   Json?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @db.Timestamp(6)
 
-  actor User @relation(fields: [actorId], references: [id])
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([actorId])
   @@index([entityType, entityId])
   @@index([createdAt])
 }
+```
 ```
 
 ### 8.3 Critical Database Constraints
