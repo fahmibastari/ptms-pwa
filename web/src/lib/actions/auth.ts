@@ -19,7 +19,7 @@ export async function login(formData: FormData) {
   });
 
   if (error) {
-    return { error: "Email atau password salah." };
+    return { error: `Login gagal: ${error.message}` };
   }
 
   redirect("/dashboard");
@@ -59,7 +59,7 @@ export async function register(formData: FormData) {
     if (error.message.includes("already registered")) {
       return { error: "Email sudah terdaftar." };
     }
-    return { error: "Gagal mendaftar. Coba lagi." };
+    return { error: `Gagal mendaftar: ${error.message}` };
   }
 
   redirect("/dashboard");
@@ -113,4 +113,79 @@ export async function switchRole(role: string) {
 
   redirect("/dashboard");
 }
+
+export async function updateUserRole(targetUserId: string, role: string, action: "ADD" | "REMOVE") {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Silakan login terlebih dahulu." };
+  }
+
+  const { prisma } = await import("@/lib/prisma");
+  const { Role } = await import("@/generated/prisma");
+
+  // 1. Verify the requester is an ADMIN
+  const adminCheck = await prisma.userRole.findUnique({
+    where: {
+      userId_role: {
+        userId: user.id,
+        role: Role.ADMIN,
+      },
+    },
+  });
+
+  if (!adminCheck) {
+    return { error: "Hanya Admin yang memiliki otorisasi untuk mengubah role." };
+  }
+
+  // Prevent admin from removing their own ADMIN role
+  if (targetUserId === user.id && role === "ADMIN" && action === "REMOVE") {
+    return { error: "Anda tidak dapat menghapus akses Admin Anda sendiri." };
+  }
+
+  const targetRole = role as any;
+
+  try {
+    if (action === "ADD") {
+      await prisma.userRole.upsert({
+        where: {
+          userId_role: {
+            userId: targetUserId,
+            role: targetRole,
+          },
+        },
+        update: {},
+        create: {
+          userId: targetUserId,
+          role: targetRole,
+        },
+      });
+    } else {
+      // Check that the user has at least one role left
+      const roleCount = await prisma.userRole.count({
+        where: { userId: targetUserId },
+      });
+
+      if (roleCount <= 1) {
+        return { error: "Pengguna harus memiliki minimal satu peran (role)." };
+      }
+
+      await prisma.userRole.delete({
+        where: {
+          userId_role: {
+            userId: targetUserId,
+            role: targetRole,
+          },
+        },
+      });
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { error: `Gagal memperbarui role: ${err.message}` };
+  }
+}
+
 

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "./logout-button";
 import { RoleSwitcher } from "./role-switcher";
+import { AdminView } from "./admin-view";
 import { prisma } from "@/lib/prisma";
 
 export default async function DashboardPage() {
@@ -23,6 +24,19 @@ export default async function DashboardPage() {
   const availableRoles = dbRoles.map((r) => r.role);
   // Default to the first available database role if active_role metadata doesn't exist
   const activeRole = user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
+
+  // Fetch all users with their roles if active user is an ADMIN
+  let allUsers: any[] = [];
+  if (activeRole === "ADMIN") {
+    allUsers = await prisma.user.findMany({
+      include: {
+        roles: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -77,15 +91,20 @@ export default async function DashboardPage() {
         )}
 
         {/* Dynamic content view depending on activeRole */}
-        <div className="glass-card p-10 text-center mt-8 animate-fade-in" style={{ animationDelay: "0.2s" }}>
-          <h2 className="text-xl font-bold mb-2">
-            Tampilan khusus Role: <span className="text-accent">{activeRole}</span>
-          </h2>
-          <p className="text-muted text-sm mt-4">
-            {activeRole === "ADMIN" && "🔧 Panel Admin: Akses penuh ke manajemen paket, pendaftaran trainer, dan audit log."}
-            {activeRole === "TRAINER" && "💪 Panel Trainer: Lihat jadwal member, buat session notes, dan scan absensi member."}
-            {activeRole === "MEMBER" && "📱 Panel Member: Generate QR code absensi, lihat sisa sesi, dan riwayat latihan."}
-          </p>
+        <div className="mt-8 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+          {activeRole === "ADMIN" ? (
+            <AdminView initialUsers={allUsers} />
+          ) : (
+            <div className="glass-card p-10 text-center">
+              <h2 className="text-xl font-bold mb-2">
+                Tampilan khusus Role: <span className="text-accent">{activeRole}</span>
+              </h2>
+              <p className="text-muted text-sm mt-4">
+                {activeRole === "TRAINER" && "💪 Panel Trainer: Lihat jadwal member, buat session notes, dan scan absensi member."}
+                {activeRole === "MEMBER" && "📱 Panel Member: Generate QR code absensi, lihat sisa sesi, dan riwayat latihan."}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
