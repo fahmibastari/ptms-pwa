@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { updateUserRole } from "@/lib/actions/auth";
+import { Search, ShieldCheck, X, Plus, UserCircle } from "lucide-react";
 
 interface RoleData {
   id: number;
@@ -58,8 +59,9 @@ export function AdminView({ initialUsers }: AdminViewProps) {
         })
       );
 
-      setSuccess(`Berhasil ${hasRole ? "mencabut" : "memberi"} role ${role}.`);
-      setTimeout(() => setSuccess(null), 3000);
+      const userName = users.find((u) => u.id === userId)?.fullName || "User";
+      setSuccess(`Role ${role} berhasil ${hasRole ? "dicabut dari" : "diberikan ke"} ${userName}.`);
+      setTimeout(() => setSuccess(null), 4000);
     });
   };
 
@@ -71,102 +73,130 @@ export function AdminView({ initialUsers }: AdminViewProps) {
   const allRoles = ["MEMBER", "TRAINER", "ADMIN"];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* ── Section Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Manajemen Pengguna</h2>
-          <p className="text-muted text-sm mt-1">
-            {users.length} pengguna terdaftar
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-accent/10">
+            <ShieldCheck size={18} className="text-accent" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">Manajemen User</h2>
+            <p className="text-muted text-xs mt-0.5">{users.length} pengguna terdaftar</p>
+          </div>
         </div>
-        <input
-          type="text"
-          placeholder="Cari nama atau email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full sm:w-72 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/50 transition-colors"
-        />
+        <div className="relative w-full sm:w-64">
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            placeholder="Cari nama atau email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder:text-muted/60 focus:outline-none focus:border-accent/40 transition-colors"
+          />
+        </div>
       </div>
 
-      {/* ── Toast Feedback ── */}
+      {/* ── Feedback ── */}
       {error && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-5 py-3.5 text-sm text-red-400 animate-fade-in">
-          ⚠️ {error}
+        <div className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/[0.04] px-4 py-3 text-sm text-red-400 animate-fade-in">
+          <X size={14} className="shrink-0" />
+          {error}
         </div>
       )}
       {success && (
-        <div className="rounded-xl border border-success/20 bg-success/5 px-5 py-3.5 text-sm text-success animate-fade-in">
-          ✅ {success}
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3 text-sm text-emerald-400 animate-fade-in">
+          <ShieldCheck size={14} className="shrink-0" />
+          {success}
         </div>
       )}
 
-      {/* ── User Cards Grid ── */}
+      {/* ── User Table ── */}
       {filteredUsers.length === 0 ? (
-        <div className="glass-card px-8 py-16 text-center">
-          <p className="text-muted">Tidak ada pengguna ditemukan.</p>
+        <div className="glass-card px-6 py-12 text-center">
+          <UserCircle size={28} className="text-muted/40 mx-auto mb-3" />
+          <p className="text-muted text-sm">Tidak ada pengguna ditemukan.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {filteredUsers.map((user) => (
-            <div key={user.id} className="glass-card px-7 py-6 flex flex-col gap-5">
-              {/* User Info */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3.5 min-w-0">
-                  {/* Avatar */}
-                  <div className="shrink-0 w-10 h-10 rounded-full bg-accent/15 border border-accent/20 flex items-center justify-center text-accent font-bold text-sm">
-                    {(user.fullName?.[0] || user.email[0]).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm text-white truncate">
-                      {user.fullName || "Trainee Baru"}
-                    </p>
-                    <p className="text-muted text-xs mt-0.5 truncate">{user.email}</p>
-                  </div>
-                </div>
-              </div>
+        <div className="glass-card overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-white/[0.06]">
+                <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Pengguna</th>
+                <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3.5 text-[11px] font-medium text-muted uppercase tracking-wider text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.04]">
+              {filteredUsers.map((user) => (
+                <tr key={user.id} className="hover:bg-white/[0.02] transition-colors">
+                  {/* User info */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="shrink-0 w-9 h-9 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-muted font-semibold text-xs">
+                        {(user.fullName?.[0] || user.email[0]).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {user.fullName || "Pengguna Baru"}
+                        </p>
+                        <p className="text-[11px] text-muted truncate">{user.email}</p>
+                      </div>
+                    </div>
+                  </td>
 
-              {/* Current Roles */}
-              <div className="flex flex-wrap gap-1.5">
-                {user.roles.map((r) => {
-                  const s = ROLE_STYLES[r.role] || ROLE_STYLES.MEMBER;
-                  return (
-                    <span
-                      key={r.id}
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${s.bg} ${s.text} ${s.border}`}
-                    >
-                      {r.role}
-                    </span>
-                  );
-                })}
-              </div>
+                  {/* Roles */}
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1.5">
+                      {user.roles.map((r) => {
+                        const s = ROLE_STYLES[r.role] || ROLE_STYLES.MEMBER;
+                        return (
+                          <span
+                            key={r.id}
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${s.bg} ${s.text} ${s.border}`}
+                          >
+                            {r.role}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </td>
 
-              {/* Divider */}
-              <div className="border-t border-white/5" />
-
-              {/* Role Toggle Buttons */}
-              <div className="flex flex-wrap gap-2">
-                {allRoles.map((role) => {
-                  const hasRole = user.roles.some((r) => r.role === role);
-                  const s = ROLE_STYLES[role] || ROLE_STYLES.MEMBER;
-                  return (
-                    <button
-                      key={role}
-                      disabled={isPending}
-                      onClick={() => handleRoleToggle(user.id, role, hasRole)}
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                        hasRole
-                          ? `${s.bg} ${s.text} border ${s.border} hover:opacity-70`
-                          : "bg-white/5 text-muted border border-white/8 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      {hasRole ? `✕ Cabut ${role}` : `+ Beri ${role}`}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+                  {/* Actions */}
+                  <td className="px-6 py-4 text-right">
+                    <div className="inline-flex flex-wrap justify-end gap-1.5">
+                      {allRoles.map((role) => {
+                        const hasRole = user.roles.some((r) => r.role === role);
+                        const s = ROLE_STYLES[role] || ROLE_STYLES.MEMBER;
+                        return (
+                          <button
+                            key={role}
+                            disabled={isPending}
+                            onClick={() => handleRoleToggle(user.id, role, hasRole)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                              hasRole
+                                ? `${s.bg} ${s.text} border ${s.border} hover:opacity-70`
+                                : "bg-white/[0.03] text-muted border border-white/[0.06] hover:bg-white/[0.06] hover:text-white"
+                            }`}
+                          >
+                            {hasRole ? (
+                              <>
+                                <X size={10} /> {role}
+                              </>
+                            ) : (
+                              <>
+                                <Plus size={10} /> {role}
+                              </>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

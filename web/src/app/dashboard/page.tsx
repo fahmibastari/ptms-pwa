@@ -1,9 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LogoutButton } from "./logout-button";
-import { RoleSwitcher } from "./role-switcher";
-import { AdminView } from "./admin-view";
 import { prisma } from "@/lib/prisma";
+import { AdminView } from "./admin-view";
+import {
+  Users,
+  Dumbbell,
+  QrCode,
+  TrendingUp,
+  AlertTriangle,
+} from "lucide-react";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -15,108 +20,158 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Fetch roles from the PostgreSQL database
   const dbRoles = await prisma.userRole.findMany({
     where: { userId: user.id },
     select: { role: true },
   });
 
   const availableRoles = dbRoles.map((r) => r.role);
-  const activeRole = user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
+  const activeRole =
+    user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
 
-  // Fetch all users with their roles if active user is an ADMIN
+  // Fetch stats for admin overview
+  let totalUsers = 0;
+  let totalTrainers = 0;
   let allUsers: any[] = [];
+
   if (activeRole === "ADMIN") {
-    allUsers = await prisma.user.findMany({
-      include: { roles: true },
-      orderBy: { createdAt: "desc" },
-    });
+    [totalUsers, totalTrainers, allUsers] = await Promise.all([
+      prisma.user.count(),
+      prisma.userRole.count({ where: { role: "TRAINER" } }),
+      prisma.user.findMany({
+        include: { roles: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
   }
 
   const greeting = getGreeting();
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Background Orbs */}
-      <div className="bg-orb bg-orb-1" />
-      <div className="bg-orb bg-orb-2" />
+    <div className="space-y-8 animate-fade-in">
+      {/* ── Page Header ── */}
+      <div>
+        <p className="text-muted text-sm">{greeting}</p>
+        <h1 className="text-2xl font-bold tracking-tight mt-1">
+          {user.user_metadata?.full_name || "Dashboard"}
+        </h1>
+      </div>
 
-      <div className="relative z-10 max-w-6xl mx-auto px-6 sm:px-10 py-10 sm:py-16">
-        
-        {/* ── Top Bar ── */}
-        <header className="flex items-start sm:items-center justify-between gap-4 mb-14 animate-fade-in">
-          <div>
-            <p className="text-muted text-sm">{greeting}</p>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mt-1">
-              {user.user_metadata?.full_name || user.email}
-            </h1>
-          </div>
-          <LogoutButton />
-        </header>
-
-        {/* ── Stat Cards ── */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-14 animate-fade-in" style={{ animationDelay: "0.08s" }}>
-          <div className="glass-card px-7 py-6">
-            <p className="text-muted text-[11px] uppercase tracking-widest font-medium mb-2">Email</p>
-            <p className="font-medium text-sm truncate">{user.email}</p>
-          </div>
-
-          <RoleSwitcher availableRoles={availableRoles} activeRole={activeRole} />
-
-          <div className="glass-card px-7 py-6">
-            <p className="text-muted text-[11px] uppercase tracking-widest font-medium mb-2">Status</p>
-            <span className="inline-flex items-center gap-2 text-sm">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-success" />
-              </span>
-              Aktif
-            </span>
-          </div>
-        </section>
-
-        {/* ── Sync Warning ── */}
-        {availableRoles.length === 0 && (
-          <section className="mb-14 animate-fade-in">
-            <div className="glass-card px-7 py-6 border-amber-500/20 bg-amber-500/5">
-              <div className="flex gap-4">
-                <span className="text-amber-500 text-xl mt-0.5">⚠️</span>
-                <div>
-                  <h4 className="text-sm font-semibold text-amber-400">Sinkronisasi database belum aktif</h4>
-                  <p className="text-xs text-muted mt-2 leading-relaxed max-w-xl">
-                    Akun Anda terdaftar di Supabase Auth, tetapi belum tersinkronisasi ke tabel PostgreSQL.
-                    Jalankan <strong className="text-amber-300">SQL Trigger</strong> di Supabase SQL Editor agar tabel <code className="text-amber-300">User</code> dan <code className="text-amber-300">UserRole</code> terisi otomatis saat registrasi.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ── Main Content ── */}
-        <section className="animate-fade-in" style={{ animationDelay: "0.16s" }}>
-          {activeRole === "ADMIN" ? (
-            <AdminView initialUsers={allUsers} />
-          ) : (
-            <div className="glass-card px-10 py-14 text-center">
-              <h2 className="text-xl font-bold mb-3">
-                Panel <span className="text-accent">{activeRole}</span>
-              </h2>
-              <p className="text-muted text-sm leading-relaxed max-w-md mx-auto">
-                {activeRole === "TRAINER" && "💪 Lihat jadwal member, buat session notes, dan scan absensi member."}
-                {activeRole === "MEMBER" && "📱 Generate QR code absensi, lihat sisa sesi, dan riwayat latihan Anda."}
+      {/* ── Sync Warning ── */}
+      {availableRoles.length === 0 && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] px-6 py-5">
+          <div className="flex gap-4">
+            <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-semibold text-amber-400">
+                Sinkronisasi database belum aktif
+              </h4>
+              <p className="text-xs text-muted mt-1.5 leading-relaxed max-w-xl">
+                Akun Anda terdaftar di Supabase Auth, tetapi belum
+                tersinkronisasi ke tabel PostgreSQL. Jalankan SQL Trigger di
+                Supabase SQL Editor agar tabel User dan UserRole terisi otomatis.
               </p>
             </div>
-          )}
-        </section>
+          </div>
+        </div>
+      )}
+
+      {/* ── Admin View ── */}
+      {activeRole === "ADMIN" && (
+        <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <StatCard
+              icon={<Users size={18} />}
+              label="Total Pengguna"
+              value={totalUsers}
+              accent="text-blue-400"
+              bg="bg-blue-500/10"
+            />
+            <StatCard
+              icon={<Dumbbell size={18} />}
+              label="Trainer Aktif"
+              value={totalTrainers}
+              accent="text-violet-400"
+              bg="bg-violet-500/10"
+            />
+            <StatCard
+              icon={<QrCode size={18} />}
+              label="Absensi Hari Ini"
+              value={0}
+              accent="text-emerald-400"
+              bg="bg-emerald-500/10"
+            />
+            <StatCard
+              icon={<TrendingUp size={18} />}
+              label="Sesi Bulan Ini"
+              value={0}
+              accent="text-amber-400"
+              bg="bg-amber-500/10"
+            />
+          </div>
+
+          {/* User Management */}
+          <AdminView initialUsers={allUsers} />
+        </>
+      )}
+
+      {/* ── Trainer View ── */}
+      {activeRole === "TRAINER" && (
+        <div className="glass-card px-8 py-12 text-center">
+          <Dumbbell size={32} className="text-accent mx-auto mb-4 opacity-60" />
+          <h2 className="text-lg font-semibold mb-2">Panel Trainer</h2>
+          <p className="text-muted text-sm max-w-md mx-auto leading-relaxed">
+            Lihat jadwal member, buat session notes, dan scan absensi member.
+            Fitur ini sedang dalam pengembangan.
+          </p>
+        </div>
+      )}
+
+      {/* ── Member View ── */}
+      {activeRole === "MEMBER" && (
+        <div className="glass-card px-8 py-12 text-center">
+          <QrCode size={32} className="text-accent mx-auto mb-4 opacity-60" />
+          <h2 className="text-lg font-semibold mb-2">Panel Member</h2>
+          <p className="text-muted text-sm max-w-md mx-auto leading-relaxed">
+            Generate QR code absensi, lihat sisa sesi, dan riwayat latihan Anda.
+            Fitur ini sedang dalam pengembangan.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  accent,
+  bg,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  accent: string;
+  bg: string;
+}) {
+  return (
+    <div className="glass-card px-6 py-5">
+      <div className="flex items-center justify-between mb-3">
+        <span className={`p-2 rounded-lg ${bg}`}>
+          <span className={accent}>{icon}</span>
+        </span>
       </div>
+      <p className="text-2xl font-bold tracking-tight">{value}</p>
+      <p className="text-muted text-xs mt-1">{label}</p>
     </div>
   );
 }
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return "Selamat Pagi 👋";
-  if (hour < 17) return "Selamat Siang 👋";
-  return "Selamat Malam 👋";
+  if (hour < 12) return "Selamat Pagi";
+  if (hour < 17) return "Selamat Siang";
+  return "Selamat Malam";
 }

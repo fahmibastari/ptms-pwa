@@ -2,60 +2,54 @@
 
 import { useTransition, useState } from "react";
 import { switchRole } from "@/lib/actions/auth";
+import { RefreshCw } from "lucide-react";
 
 interface RoleSwitcherProps {
   availableRoles: string[];
   activeRole: string;
 }
 
+const ROLE_COLOR: Record<string, string> = {
+  ADMIN: "bg-red-500/15 text-red-400 border-red-500/25",
+  TRAINER: "bg-violet-500/15 text-violet-400 border-violet-500/25",
+  MEMBER: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+};
+
 export function RoleSwitcher({ availableRoles, activeRole }: RoleSwitcherProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  async function handleRoleChange(newRole: string) {
+  function handleRoleChange(newRole: string) {
     if (newRole === activeRole) return;
     setError(null);
     startTransition(async () => {
       const result = await switchRole(newRole);
-      if (result?.error) {
-        setError(result.error);
-      }
+      if (result?.error) setError(result.error);
     });
   }
 
   return (
-    <div className="glass-card px-7 py-6">
-      <p className="text-muted text-[11px] uppercase tracking-widest font-medium mb-2">Active Role</p>
-
-      {availableRoles.length <= 1 ? (
-        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-accent/10 text-accent border border-accent/20">
-          {activeRole}
-        </span>
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          <div className="flex flex-wrap gap-2">
-            {availableRoles.map((role) => {
-              const isActive = role === activeRole;
-              return (
-                <button
-                  key={role}
-                  disabled={isPending}
-                  onClick={() => handleRoleChange(role)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-accent text-white shadow-md shadow-accent/20"
-                      : "bg-white/5 hover:bg-white/10 text-foreground border border-card-border"
-                  } disabled:opacity-50`}
-                >
-                  {role}
-                </button>
-              );
-            })}
-          </div>
-          {isPending && <p className="text-xs text-muted animate-pulse">Switching role...</p>}
-          {error && <p className="text-xs text-error">{error}</p>}
-        </div>
-      )}
+    <div className="flex items-center gap-2">
+      {availableRoles.map((role) => {
+        const isActive = role === activeRole;
+        const color = ROLE_COLOR[role] || ROLE_COLOR.MEMBER;
+        return (
+          <button
+            key={role}
+            disabled={isPending}
+            onClick={() => handleRoleChange(role)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold border transition-all cursor-pointer disabled:opacity-50 ${
+              isActive
+                ? color
+                : "bg-transparent text-muted border-white/[0.08] hover:bg-white/[0.04] hover:text-white"
+            }`}
+          >
+            {isPending && !isActive && <RefreshCw size={10} className="animate-spin" />}
+            {role}
+          </button>
+        );
+      })}
+      {error && <span className="text-[10px] text-red-400 ml-1">{error}</span>}
     </div>
   );
 }
