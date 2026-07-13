@@ -122,7 +122,7 @@ export function Sidebar({ activeRole, userName, userEmail }: SidebarProps) {
             <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/25 flex items-center justify-center">
               <Shield size={16} className="text-accent" />
             </div>
-            <span className="font-bold text-sm tracking-tight">PTMS</span>
+            <span className="font-bold text-sm tracking-tight">PTMS Dev</span>
           </div>
           <button
             onClick={() => setOpen(false)}

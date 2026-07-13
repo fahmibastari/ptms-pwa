@@ -289,7 +289,7 @@ export default async function DashboardPage() {
             </div>
             <div className="glass-card p-6 flex flex-col justify-center items-center text-center">
               <Award className="text-accent mb-3" size={32} />
-              <h4 className="text-xs font-semibold text-white">SaaS-Grade PTMS</h4>
+              <h4 className="text-xs font-semibold text-white">SaaS-Grade PTMS Dev</h4>
               <p className="text-[10px] text-muted mt-2 max-w-[200px]">
                 Sistem absensi berbasis QR Code terenkripsi instan 30 detik untuk keandalan pencatatan kehadiran traineer.
               </p>
