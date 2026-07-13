@@ -476,6 +476,7 @@ model Member {
   attendance       Attendance[]
   trainings        Training[]
   subscriptions    Subscription[]
+  gymVisits        GymVisit[]
 }
 ```
 
@@ -649,6 +650,22 @@ model AuditLog {
   @@index([createdAt])
 }
 ```
+
+#### GymVisit
+
+```prisma
+model GymVisit {
+  id        String    @id @default(uuid())
+  memberId  String
+  checkIn   DateTime  @default(now()) @db.Timestamp(6)
+  checkOut  DateTime? @db.Timestamp(6)
+
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([checkIn])
+}
+```
 ```
 
 ### 8.3 Critical Database Constraints
@@ -711,6 +728,21 @@ flowchart TD
 | `totalSession = null` (unlimited) | Tidak decrement, hanya catat attendance |
 | Multiple ACTIVE subscriptions | Dikurangi dari subscription dengan `endDate` terdekat (earliest expiry first) |
 | Double Scan Prevention | Maksimal 1 check-in per 4 jam untuk member-trainer pair yang sama (dapat di-bypass oleh Admin) |
+
+### 9.4 Gym Visit Tracking Flow
+
+Selain absensi latihan dengan Personal Trainer, sistem juga mencatat kunjungan harian member ke fasilitas gym (Gym Visit). Berbeda dengan absensi PT, Gym Visit tidak mengurangi sisa sesi latihan member.
+
+```mermaid
+flowchart TD
+    A[Member scan QR scanner di resepsionis / gate] --> B[POST /api/visits/checkin]
+    B --> C{Cek Subscription Aktif}
+    C -->|Tidak Ada Subscription Aktif| D[403 Forbidden - Membership Expired]
+    C -->|Ada Subscription Aktif| E[BEGIN TRANSACTION]
+    E --> F[INSERT GymVisit checkIn = NOW]
+    F --> G[COMMIT]
+    G --> H[Open Gate / Log Kunjungan Sukses]
+```
 
 ---
 
