@@ -21,8 +21,8 @@ export default async function DashboardPage() {
   });
 
   const availableRoles = dbRoles.map((r) => r.role);
-  // Default to MEMBER if active_role metadata doesn't exist
-  const activeRole = user.user_metadata?.active_role || "MEMBER";
+  // Default to the first available database role if active_role metadata doesn't exist
+  const activeRole = user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
 
   return (
     <div className="min-h-screen relative overflow-hidden">
