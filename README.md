@@ -596,7 +596,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start[Trainer scans QR with activeRole = TRAINER] --> Verify[POST /api/qr/verify { token }]
+    Start[Trainer scans QR with activeRole = TRAINER] --> Verify["POST /api/qr/verify { token }"]
     
     Verify --> CheckToken{Validation Checks}
     CheckToken -->|Token Not Found| E404[404 Not Found]
