@@ -120,11 +120,11 @@ sequenceDiagram
 
 ### 3.2 Role Descriptions
 
-**Admin** — Hak akses penuh terhadap seluruh modul: user management, paket, pembayaran, dashboard, dan laporan.
+**Admin** - Hak akses penuh terhadap seluruh modul: user management, paket, pembayaran, dashboard, dan laporan.
 
-**Trainer** — Operasional harian: scan QR member yang di-assign, lihat attendance, tulis session notes, dan (opsional) lihat revenue pribadi.
+**Trainer** - Operasional harian: scan QR member yang di-assign, lihat attendance, tulis session notes, dan (opsional) lihat revenue pribadi.
 
-**Member** — Self-service: tampilkan QR, lihat attendance history, trainer aktif, paket aktif, pembayaran, dan progress.
+**Member** - Self-service: tampilkan QR, lihat attendance history, trainer aktif, paket aktif, pembayaran, dan progress.
 
 ---
 
@@ -583,48 +583,39 @@ model AuditLog {
 
 ### 9.1 Generate QR (Member)
 
-```text
-Member buka app (activeRole = MEMBER)
-    │
-    ▼
-POST /api/qr/generate
-    │
-    ▼
-Buat QrToken (CSPRNG 256-bit hex token, TTL 30 detik, used = false)
-    │
-    ▼
-Return { token } → render sebagai QR di layar
-    │
-    ▼
-Auto-refresh setiap 25 detik (sebelum expired)
+```mermaid
+flowchart TD
+    A[Member opens app with activeRole = MEMBER] --> B[POST /api/qr/generate]
+    B --> C["Create QrToken (CSPRNG 256-bit hex, TTL 30s, used = false)"]
+    C --> D[Return token]
+    D --> E[Render QR on Member screen]
+    E --> F[Auto-refresh every 25 seconds before expiry]
 ```
 
 ### 9.2 Scan QR (Trainer)
 
-```text
-Trainer scan QR (activeRole = TRAINER)
-    │
-    ▼
-POST /api/qr/verify { token }
-    │
-    ├── Token tidak ditemukan ──────────► 404
-    ├── Token expired ──────────────────► 410 Gone
-    ├── Token sudah used ───────────────► 409 Conflict
-    ├── Trainer bukan assignee member ──► 403 Forbidden
-    ├── Self check-in (trainer = member) ► 403 Forbidden
-    └── Tidak ada subscription ACTIVE ──► 422 Unprocessable
-    │
-    ▼
-BEGIN TRANSACTION
-    ├── SELECT ... FOR UPDATE pada QrToken
-    ├── INSERT Attendance
-    ├── UPDATE Subscription (remainingSession - 1)
-    ├── UPDATE QrToken (used = true, usedBy = trainerId)
-    └── INSERT AuditLog
-COMMIT
-    │
-    ▼
-Return attendance record
+```mermaid
+flowchart TD
+    Start[Trainer scans QR with activeRole = TRAINER] --> Verify[POST /api/qr/verify { token }]
+    
+    Verify --> CheckToken{Validation Checks}
+    CheckToken -->|Token Not Found| E404[404 Not Found]
+    CheckToken -->|Token Expired| E410[410 Gone]
+    CheckToken -->|Token Already Used| E409[409 Conflict]
+    CheckToken -->|Trainer Not Assigned to Member| E403_1[403 Forbidden]
+    CheckToken -->|Self Check-in| E403_2[403 Forbidden]
+    CheckToken -->|No Active Subscription| E422[422 Unprocessable Entity]
+    
+    CheckToken -->|Valid| Tx[BEGIN TRANSACTION]
+    
+    Tx --> S1["SELECT ... FOR UPDATE pada QrToken"]
+    S1 --> S2[INSERT Attendance]
+    S2 --> S3[UPDATE Subscription remainingSession - 1]
+    S3 --> S4[UPDATE QrToken used = true, usedBy = trainerId]
+    S4 --> S5[INSERT AuditLog]
+    
+    S5 --> Commit[COMMIT]
+    Commit --> Res[Return Attendance Record]
 ```
 
 ### 9.3 Session Reduction Rules
@@ -646,13 +637,13 @@ Return attendance record
 | Convention | Standard |
 |---|---|
 | Auth | httpOnly session cookie via Supabase Auth |
-| Role context | **Server-side session only** — `activeRole` dibaca dari session store / signed JWT claim, **bukan** dari client header |
+| Role context | **Server-side session only** - `activeRole` dibaca dari session store / signed JWT claim, **bukan** dari client header |
 | Pagination | `?page=1&limit=20` |
 | Error format | `{ "error": { "code": "...", "message": "..." } }` |
 | Success format | `{ "data": ... }` |
 | Timestamps | Semua dalam UTC. Client convert ke timezone lokal (WIB) untuk display |
 
-> **⚠️ PENTING:** Jangan pernah membaca `activeRole` dari HTTP header (misal `X-Active-Role`). Header dikontrol client — siapapun bisa mengirim `X-Active-Role: ADMIN` via curl dan mendapat akses penuh. Role context **harus** dari server-side session yang di-sign oleh server.
+> **⚠️ PENTING:** Jangan pernah membaca `activeRole` dari HTTP header (misal `X-Active-Role`). Header dikontrol client - siapapun bisa mengirim `X-Active-Role: ADMIN` via curl dan mendapat akses penuh. Role context **harus** dari server-side session yang di-sign oleh server.
 
 ### 10.2 Endpoints
 
@@ -747,9 +738,9 @@ MEMBER (activeRole = MEMBER)
 
 **Enforcement layers:**
 
-1. **Middleware** — Validasi session + active role
-2. **Server Action / Route Handler** — Resource-level authorization
-3. **Database transaction** — Row-level check sebelum mutation
+1. **Middleware** - Validasi session + active role
+2. **Server Action / Route Handler** - Resource-level authorization
+3. **Database transaction** - Row-level check sebelum mutation
 
 ### 11.3 Dynamic QR Security
 
@@ -767,9 +758,9 @@ MEMBER (activeRole = MEMBER)
 | Measure | Scope |
 |---|---|
 | HTTPS only | Semua komunikasi |
-| Rate limiting | `/api/auth/login`, `/api/qr/generate`, `/api/qr/verify` — 5–10 req/min per IP/user |
+| Rate limiting | `/api/auth/login`, `/api/qr/generate`, `/api/qr/verify` - 5–10 req/min per IP/user |
 | Audit logging | LOGIN, LOGOUT, PAYMENT_CREATED, ATTENDANCE_CREATED, USER_UPDATED, ROLE_ADDED |
-| Soft delete | User, MembershipPlan — preserve audit trail |
+| Soft delete | User, MembershipPlan - preserve audit trail |
 | Input validation | Zod schema di setiap endpoint |
 | CSRF protection | Built-in Next.js Server Actions origin check |
 | Idempotency | Unique constraint + transaction pada attendance creation |
@@ -843,14 +834,14 @@ MEMBER (activeRole = MEMBER)
 
 | Phase | Scope | Estimate | Dependency |
 |---|---|---|---|
-| **1 — Foundation & Security** | Auth, User, Role, Audit Log setup, Supabase sync | 4 days | — |
-| **2 — Trainer-Member** | Assignment module | 2 days | Phase 1 |
-| **3 — Attendance & CSPRNG QR** | Dynamic QR (CSPRNG), scan check-in, atomic transactions | 5 days | Phase 2 |
-| **4 — Membership** | Plans, subscriptions | 3 days | Phase 1 |
-| **5 — Payment** | Payment recording, outstanding tracking | 3 days | Phase 4 |
-| **6 — Dashboard & Metrics** | Role-based metrics, analytics query optimization | 3 days | Phase 3, 5 |
-| **7 — Security Hardening** | Rate limits, session revocation UI, CORS/CSP | 2 days | Phase 3 |
-| **8 — PWA Shell** | Manifest, service worker, performance optimization | 2 days | Phase 6 |
+| **1 - Foundation & Security** | Auth, User, Role, Audit Log setup, Supabase sync | 4 days | - |
+| **2 - Trainer-Member** | Assignment module | 2 days | Phase 1 |
+| **3 - Attendance & CSPRNG QR** | Dynamic QR (CSPRNG), scan check-in, atomic transactions | 5 days | Phase 2 |
+| **4 - Membership** | Plans, subscriptions | 3 days | Phase 1 |
+| **5 - Payment** | Payment recording, outstanding tracking | 3 days | Phase 4 |
+| **6 - Dashboard & Metrics** | Role-based metrics, analytics query optimization | 3 days | Phase 3, 5 |
+| **7 - Security Hardening** | Rate limits, session revocation UI, CORS/CSP | 2 days | Phase 3 |
+| **8 - PWA Shell** | Manifest, service worker, performance optimization | 2 days | Phase 6 |
 
 **Total MVP Duration: 24 Working Days**
 
@@ -890,4 +881,4 @@ MEMBER (activeRole = MEMBER)
 
 ---
 
-*End of Document — Version 3.0*
+*End of Document - Version 3.0*
