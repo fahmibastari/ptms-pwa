@@ -1,19 +1,23 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { generateQrToken } from "@/lib/actions/qr";
+import { generateQrToken, checkQrTokenStatus } from "@/lib/actions/qr";
 import QRCode from "qrcode";
-import { RefreshCw, QrCode, ShieldAlert, Timer } from "lucide-react";
+import { RefreshCw, QrCode, ShieldAlert, Timer, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export function MemberQr() {
+  const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(30);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scannedSuccess, setScannedSuccess] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   async function fetchToken() {
+    if (scannedSuccess) return;
     setLoading(true);
     setError(null);
     try {
@@ -55,8 +59,32 @@ export function MemberQr() {
     };
   }, []);
 
+  // Poll status of the token to see if it is verified
   useEffect(() => {
-    if (!token) return;
+    if (!token || scannedSuccess) return;
+
+    const pollInterval = setInterval(async () => {
+      const res = await checkQrTokenStatus(token);
+      if (res.success && res.used) {
+        clearInterval(pollInterval);
+        setScannedSuccess(true);
+        if (timerRef.current) clearInterval(timerRef.current);
+        
+        // Auto-redirect to dashboard home after 3 seconds
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 3000);
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [token, scannedSuccess]);
+
+  // Countdown timer for token regeneration
+  useEffect(() => {
+    if (!token || scannedSuccess) return;
 
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -73,13 +101,25 @@ export function MemberQr() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [token]);
+  }, [token, scannedSuccess]);
 
   return (
     <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
       {/* QR Container - Pure white container for maximum QR scanning compatibility */}
       <div className="w-full aspect-square bg-white rounded-2xl flex items-center justify-center p-6 shadow-xl relative overflow-hidden">
-        {loading ? (
+        {scannedSuccess ? (
+          <div className="flex flex-col items-center gap-3 p-6 text-center animate-scale-up">
+            <CheckCircle2 size={48} className="text-emerald-500 animate-bounce" />
+            <p className="text-gray-950 font-bold text-base mt-2">Absensi Berhasil!</p>
+            <p className="text-gray-600 text-xs mt-1 leading-relaxed">
+              Sisa sesi latihan Anda telah divalidasi oleh Trainer.
+            </p>
+            <div className="mt-4 flex items-center gap-2 text-gray-500 text-[10px]">
+              <RefreshCw size={10} className="animate-spin text-gray-400" />
+              <span>Mengalihkan ke Dashboard...</span>
+            </div>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col items-center gap-3">
             <RefreshCw size={24} className="text-purple-600 animate-spin" />
             <p className="text-gray-500 text-xs font-medium">Membuat QR Code...</p>
@@ -110,7 +150,7 @@ export function MemberQr() {
       </div>
 
       {/* Countdown Timer */}
-      {token && !loading && (
+      {token && !loading && !scannedSuccess && (
         <div className="mt-6 flex flex-col items-center gap-2 w-full">
           <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted uppercase">
             <Timer size={14} className="text-accent" />

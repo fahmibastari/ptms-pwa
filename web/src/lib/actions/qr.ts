@@ -335,3 +335,19 @@ export async function verifyQrToken(token: string) {
     return { error: `Gagal memproses transaksi absensi: ${err.message}` };
   }
 }
+
+/**
+ * Checks if a QR token has been used.
+ */
+export async function checkQrTokenStatus(token: string) {
+  try {
+    const qrRecord = await prisma.qrToken.findUnique({
+      where: { token },
+      select: { used: true },
+    });
+    return { success: true, used: !!qrRecord?.used };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
