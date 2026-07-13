@@ -1,30 +1,30 @@
-# PTMS Dev — Panduan Operasional
+# PTMS Dev — Panduan Penggunaan Aplikasi
 
 > **Personal Trainer Management System** · Progressive Web App  
 > Sistem absensi & manajemen sesi latihan personal trainer berbasis QR Code.
+
+🔗 **Demo:** [https://ptms-pwa.vercel.app](https://ptms-pwa.vercel.app)
 
 ---
 
 ## Daftar Isi
 
 1. [Tentang Aplikasi](#tentang-aplikasi)
-2. [Arsitektur & Tech Stack](#arsitektur--tech-stack)
-3. [Instalasi & Setup Lokal](#instalasi--setup-lokal)
-4. [Struktur Role & Hak Akses](#struktur-role--hak-akses)
-5. [Panduan Role: Admin](#-panduan-role-admin)
-6. [Panduan Role: Trainer](#-panduan-role-trainer)
-7. [Panduan Role: Member](#-panduan-role-member)
-8. [Fitur Multi-Role & Role Switching](#fitur-multi-role--role-switching)
-9. [Alur QR Absensi (End-to-End)](#alur-qr-absensi-end-to-end)
-10. [Deployment ke Vercel](#deployment-ke-vercel)
-11. [Environment Variables](#environment-variables)
-12. [FAQ & Troubleshooting](#faq--troubleshooting)
+2. [Cara Mendaftar & Login](#cara-mendaftar--login)
+3. [Struktur Role & Hak Akses](#struktur-role--hak-akses)
+4. [Panduan Role: Admin](#-panduan-role-admin)
+5. [Panduan Role: Trainer](#-panduan-role-trainer)
+6. [Panduan Role: Member](#-panduan-role-member)
+7. [Fitur Multi-Role & Role Switching](#fitur-multi-role--role-switching)
+8. [Alur QR Absensi (End-to-End)](#alur-qr-absensi-end-to-end)
+9. [Install PWA di HP](#install-pwa-di-hp)
+10. [FAQ](#faq)
 
 ---
 
 ## Tentang Aplikasi
 
-PTMS Dev adalah platform SaaS untuk mengelola operasional personal training di gym/studio fitness. Fitur utama:
+PTMS Dev adalah platform untuk mengelola operasional personal training di gym/studio fitness. Fitur utama:
 
 | Fitur | Deskripsi |
 |---|---|
@@ -39,51 +39,26 @@ PTMS Dev adalah platform SaaS untuk mengelola operasional personal training di g
 
 ---
 
-## Arsitektur & Tech Stack
+## Cara Mendaftar & Login
 
-| Layer | Teknologi |
-|---|---|
-| Framework | Next.js 16 (App Router) + React 19 + TypeScript |
-| Database | PostgreSQL (Supabase-managed) |
-| ORM | Prisma 7 |
-| Auth | Supabase Auth (JWT + httpOnly cookie) |
-| QR Engine | html5-qrcode (scan) + qrcode (generate) |
-| Styling | Vanilla CSS (dark theme, glassmorphism) |
-| Deploy | Vercel (Serverless) |
+### Registrasi
 
----
+1. Buka [https://ptms-pwa.vercel.app/register](https://ptms-pwa.vercel.app/register).
+2. Isi formulir:
+   - **Nama Lengkap** — Nama yang akan ditampilkan di sistem.
+   - **Email** — Alamat email aktif Anda.
+   - **Password** — Minimal 8 karakter.
+   - **Konfirmasi Password** — Ketik ulang password yang sama.
+3. Klik **Daftar**.
+4. Akun berhasil dibuat dan Anda akan langsung diarahkan ke Dashboard.
 
-## Instalasi & Setup Lokal
+### Login
 
-### Prasyarat
+1. Buka [https://ptms-pwa.vercel.app/login](https://ptms-pwa.vercel.app/login).
+2. Masukkan **Email** dan **Password** yang sudah terdaftar.
+3. Klik **Masuk**.
 
-- Node.js 18+
-- PostgreSQL (atau akun Supabase gratis)
-- Git
-
-### Langkah
-
-```bash
-# 1. Clone repository
-git clone https://github.com/fahmibastari/ptms-pwa.git
-cd ptms-pwa/web
-
-# 2. Install dependencies
-npm install
-
-# 3. Konfigurasi environment
-cp .env.example .env
-# Edit .env dan isi variabel (lihat bagian Environment Variables)
-
-# 4. Generate Prisma Client & migrasi database
-npx prisma generate
-npx prisma db push
-
-# 5. Jalankan development server
-npm run dev
-```
-
-Buka `http://localhost:3000` di browser. Anda akan otomatis diarahkan ke `/login`.
+> 💡 Saat pertama kali membuka URL utama, Anda akan otomatis diarahkan ke halaman Login.
 
 ---
 
@@ -102,7 +77,6 @@ Sistem PTMS memiliki **3 role utama** dengan hak akses yang berbeda:
 | Sesi Latihan (Riwayat) | ✅ (semua data) | ✅ (data sendiri) | ✅ (data sendiri) |
 | Audit Log | ✅ | ❌ | ❌ |
 | Role Switcher | ✅ (jika multi-role) | ✅ (jika multi-role) | ✅ (jika multi-role) |
-| Logout | ✅ | ✅ | ✅ |
 
 ---
 
@@ -112,18 +86,16 @@ Admin memiliki akses penuh ke seluruh sistem. Berikut adalah panduan operasional
 
 ### Menu Navigasi Admin
 
-| Menu | Path | Fungsi |
-|---|---|---|
-| Overview | `/dashboard` | Statistik: total user, trainer aktif, absensi hari ini, sesi bulan ini |
-| Manajemen User | `/dashboard/users` | Kelola role user, master paket, dan langganan member |
-| Sesi Latihan | `/dashboard/sessions` | Lihat semua riwayat absensi seluruh member & trainer |
-| Audit Log | `/dashboard/logs` | Riwayat aktivitas: perubahan role, verifikasi QR |
+| Menu | Fungsi |
+|---|---|
+| Overview | Statistik: total user, trainer aktif, absensi hari ini, sesi bulan ini |
+| Manajemen User | Kelola role user, master paket, dan langganan member |
+| Sesi Latihan | Lihat semua riwayat absensi seluruh member & trainer |
+| Audit Log | Riwayat aktivitas: perubahan role, verifikasi QR |
 
 ---
 
-### A1. Dashboard Overview (Admin)
-
-**Path:** `/dashboard`
+### A1. Dashboard Overview
 
 Saat login sebagai Admin, dashboard menampilkan 4 kartu statistik:
 
@@ -131,16 +103,12 @@ Saat login sebagai Admin, dashboard menampilkan 4 kartu statistik:
 |---|---|
 | Total Pengguna | Jumlah seluruh akun terdaftar di sistem |
 | Trainer Aktif | Jumlah user yang memiliki role TRAINER |
-| Absensi Hari Ini | Jumlah record attendance untuk tanggal hari ini |
-| Sesi Bulan Ini | Total sesi latihan tercatat dari awal bulan berjalan |
-
-Di bawah statistik terdapat **Panduan Administrator** yang menjelaskan alur kerja Admin.
+| Absensi Hari Ini | Jumlah check-in yang terjadi hari ini |
+| Sesi Bulan Ini | Total sesi latihan dari awal bulan berjalan |
 
 ---
 
 ### A2. Manajemen User — Tab "User & Role"
-
-**Path:** `/dashboard/users` → Tab **User & Role**
 
 **Fungsi:** Mengatur role setiap pengguna terdaftar.
 
@@ -165,8 +133,6 @@ Di bawah statistik terdapat **Panduan Administrator** yang menjelaskan alur kerj
 
 ### A3. Manajemen User — Tab "Master Paket"
 
-**Path:** `/dashboard/users` → Tab **Master Paket**
-
 **Fungsi:** Membuat dan mengelola katalog paket latihan yang tersedia di gym.
 
 **Cara Menggunakan:**
@@ -187,11 +153,7 @@ Di bawah statistik terdapat **Panduan Administrator** yang menjelaskan alur kerj
 
 ### A4. Manajemen User — Tab "Langganan Member"
 
-**Path:** `/dashboard/users` → Tab **Langganan Member**
-
 **Fungsi:** Mengaktifkan paket latihan untuk member dan mengelola kuota sesi mereka.
-
-**Cara Menggunakan:**
 
 #### Mengaktifkan Paket untuk Member:
 1. Klik tab **Langganan Member** (tab ketiga).
@@ -217,9 +179,7 @@ Di bawah statistik terdapat **Panduan Administrator** yang menjelaskan alur kerj
 
 ### A5. Sesi Latihan (Admin View)
 
-**Path:** `/dashboard/sessions`
-
-Admin melihat **seluruh** data kehadiran di sistem, meliputi:
+Admin melihat **seluruh** data kehadiran di sistem:
 
 | Kolom | Isi |
 |---|---|
@@ -233,21 +193,14 @@ Admin melihat **seluruh** data kehadiran di sistem, meliputi:
 
 ### A6. Audit Log
 
-**Path:** `/dashboard/logs`
-
-Menampilkan 100 log terbaru dari aktivitas sistem. Setiap log mencatat:
+Menampilkan 100 log terbaru dari aktivitas sistem:
 
 | Kolom | Isi |
 |---|---|
-| Waktu | Timestamp aktivitas (format: dd MMM yyyy, HH:mm:ss) |
+| Waktu | Timestamp aktivitas |
 | Pelaku (Actor) | Siapa yang melakukan aksi |
-| Aktivitas | Jenis aksi: `ADD_ROLE`, `REMOVE_ROLE`, `VERIFY_QR` |
+| Aktivitas | `ADD_ROLE`, `REMOVE_ROLE`, atau `VERIFY_QR` |
 | Detail Metadata | Informasi tambahan (nama member, sisa sesi, role yang diubah) |
-
-**Aktivitas yang dicatat:**
-- `ADD_ROLE` — Saat Admin memberikan role baru ke user.
-- `REMOVE_ROLE` — Saat Admin mencabut role dari user.
-- `VERIFY_QR` — Saat Trainer berhasil memverifikasi QR absensi member.
 
 ---
 
@@ -257,39 +210,33 @@ Trainer bertanggung jawab untuk memverifikasi kehadiran member melalui QR scan.
 
 ### Menu Navigasi Trainer
 
-| Menu | Path | Fungsi |
-|---|---|---|
-| Overview | `/dashboard` | Statistik: member dibimbing, sesi bulan ini, total sesi |
-| QR Absensi | `/dashboard/attendance` | Scanner QR untuk verifikasi kehadiran member |
-| Sesi Latihan | `/dashboard/sessions` | Riwayat sesi yang diverifikasi oleh Trainer ini |
+| Menu | Fungsi |
+|---|---|
+| Overview | Statistik: member dibimbing, sesi bulan ini, total sesi |
+| QR Absensi | Scanner QR untuk verifikasi kehadiran member |
+| Sesi Latihan | Riwayat sesi yang diverifikasi oleh Trainer ini |
 
 ---
 
-### T1. Dashboard Overview (Trainer)
-
-**Path:** `/dashboard`
+### T1. Dashboard Overview
 
 Dashboard Trainer menampilkan 3 kartu statistik:
 
 | Kartu | Data |
 |---|---|
 | Member Dibimbing | Jumlah member yang di-assign ke Trainer ini |
-| Sesi Scan Bulan Ini | Jumlah verifikasi QR yang dilakukan bulan ini |
-| Total Sesi Sukses | Total keseluruhan verifikasi yang pernah dilakukan |
+| Sesi Scan Bulan Ini | Jumlah verifikasi QR bulan ini |
+| Total Sesi Sukses | Total keseluruhan verifikasi |
 
-Di bawahnya terdapat:
-- **Aktivitas Check-in Terbaru**: 5 riwayat scan terakhir (nama member, email, waktu).
-- **Pemberitahuan Trainer**: Panduan singkat cara menggunakan QR scanner.
+Di bawahnya:
+- **Aktivitas Check-in Terbaru**: 5 riwayat scan terakhir.
+- **Pemberitahuan Trainer**: Panduan singkat penggunaan scanner.
 
 ---
 
-### T2. QR Absensi — Scanner (Trainer)
-
-**Path:** `/dashboard/attendance`
+### T2. QR Absensi — Scanner
 
 **Fungsi:** Memindai QR Code member untuk mencatat kehadiran dan memotong kuota sesi.
-
-**Cara Menggunakan:**
 
 #### Mode Kamera Scanner:
 1. Buka menu **QR Absensi** di sidebar.
@@ -297,23 +244,19 @@ Di bawahnya terdapat:
 3. Klik **Aktifkan Kamera** jika kamera belum menyala.
 4. Arahkan kamera ke QR Code yang ditampilkan di layar HP member.
 5. Sistem akan otomatis:
-   - Mendeteksi dan membaca token QR.
+   - Membaca token QR.
    - Memvalidasi token (belum expired, belum dipakai, member punya kuota).
-   - Mencatat kehadiran di database.
-   - Mengurangi 1 sesi dari kuota member.
-   - Mencatat aksi di Audit Log.
-6. Jika **berhasil**: Muncul layar hijau ✅ "Verifikasi Sukses" dengan info nama member dan sisa sesi.
+   - Mencatat kehadiran dan mengurangi 1 sesi dari kuota member.
+6. Jika **berhasil**: Muncul layar hijau ✅ "Verifikasi Sukses" + info member dan sisa sesi.
 7. Klik **Scan Kembali** untuk memindai member berikutnya.
-8. Jika **gagal**: Muncul layar merah ⚠️ dengan pesan error spesifik. Klik **Coba Lagi**.
+8. Jika **gagal**: Muncul layar merah ⚠️ dengan pesan error. Klik **Coba Lagi**.
 
-> 💡 **Penting:** Setelah scan berhasil, Trainer **tetap di halaman scanner** agar bisa langsung melanjutkan scan member lain tanpa harus navigasi ulang.
+> 💡 Setelah scan berhasil, Trainer **tetap di halaman scanner** agar bisa langsung lanjut scan member lain.
 
 #### Mode Input Manual:
 1. Klik tab **Input Manual**.
 2. Minta member untuk menyebutkan/menyalin token QR mereka.
-3. Tempel token di field input.
-4. Klik tombol kirim (→).
-5. Proses validasi sama seperti mode kamera.
+3. Tempel token di field input, lalu klik tombol kirim (→).
 
 **Kemungkinan Error Saat Scan:**
 
@@ -328,9 +271,7 @@ Di bawahnya terdapat:
 
 ### T3. Sesi Latihan (Trainer View)
 
-**Path:** `/dashboard/sessions`
-
-Menampilkan riwayat kehadiran **hanya untuk member yang di-scan oleh Trainer ini**. Kolom yang ditampilkan sama dengan Admin view.
+Menampilkan riwayat kehadiran **hanya untuk member yang di-scan oleh Trainer ini**.
 
 ---
 
@@ -340,37 +281,33 @@ Member menggunakan sistem untuk menampilkan QR Code saat datang latihan.
 
 ### Menu Navigasi Member
 
-| Menu | Path | Fungsi |
-|---|---|---|
-| Overview | `/dashboard` | Statistik: sisa kuota, latihan bulan ini, total kehadiran |
-| QR Absensi | `/dashboard/attendance` | Generate dan tampilkan QR Code untuk di-scan Trainer |
-| Sesi Latihan | `/dashboard/sessions` | Riwayat kehadiran pribadi |
+| Menu | Fungsi |
+|---|---|
+| Overview | Statistik: sisa kuota, latihan bulan ini, total kehadiran |
+| QR Absensi | Generate dan tampilkan QR Code untuk di-scan Trainer |
+| Sesi Latihan | Riwayat kehadiran pribadi |
 
 ---
 
-### M1. Dashboard Overview (Member)
-
-**Path:** `/dashboard`
+### M1. Dashboard Overview
 
 Dashboard Member menampilkan 3 kartu statistik:
 
 | Kartu | Data |
 |---|---|
-| Sisa Kuota Sesi | Jumlah sesi latihan yang tersisa di paket aktif |
-| Latihan Bulan Ini | Berapa kali sudah latihan di bulan berjalan |
+| Sisa Kuota Sesi | Jumlah sesi latihan yang tersisa |
+| Latihan Bulan Ini | Berapa kali sudah latihan bulan ini |
 | Total Kehadiran | Akumulasi kehadiran sepanjang waktu |
 
-Di bawahnya terdapat:
+Di bawahnya:
 - **Paket Aktif Anda**: Nama paket, tanggal kadaluarsa, dan progress bar kuota.
 - **Riwayat Kehadiran Anda**: 5 kehadiran terakhir (tanggal, hari, nama trainer).
 
 ---
 
-### M2. QR Absensi — Generate QR (Member)
+### M2. QR Absensi — Generate QR
 
-**Path:** `/dashboard/attendance`
-
-**Fungsi:** Menampilkan QR Code dinamis yang harus di-scan oleh Trainer untuk mencatat kehadiran.
+**Fungsi:** Menampilkan QR Code dinamis yang harus di-scan oleh Trainer.
 
 **Cara Menggunakan:**
 
@@ -379,14 +316,13 @@ Di bawahnya terdapat:
 3. Tunjukkan layar HP Anda ke Trainer.
 4. Trainer akan men-scan QR Code tersebut.
 
-**Mekanisme Keamanan QR:**
+**Fitur Keamanan QR:**
 
 | Aspek | Detail |
 |---|---|
-| Token | Dibuat secara kriptografis (CSPRNG 256-bit), bukan ID statis |
-| TTL (Time To Live) | 30 detik — QR otomatis expired |
-| Auto-Refresh | Setiap 30 detik, QR baru otomatis di-generate |
+| TTL (Time To Live) | 30 detik — QR otomatis expired dan diganti baru |
 | Single-Use | Setiap QR hanya bisa di-scan 1 kali |
+| Auto-Refresh | QR baru otomatis muncul setiap 30 detik |
 | Manual Refresh | Tombol "Perbarui Manual" tersedia di bawah countdown |
 
 **Feedback Real-time Setelah Di-scan:**
@@ -394,17 +330,13 @@ Di bawahnya terdapat:
 Setelah Trainer berhasil men-scan QR Anda:
 1. Halaman QR akan **otomatis berubah** menjadi layar sukses ✅.
 2. Muncul pesan: *"Absensi Berhasil! Sisa sesi latihan Anda telah divalidasi oleh Trainer."*
-3. Setelah **3 detik**, Anda otomatis diarahkan kembali ke halaman **Dashboard**.
-
-> 💡 Mekanisme ini menggunakan *short-polling* setiap 2 detik untuk mendeteksi apakah QR Anda sudah di-scan.
+3. Setelah **3 detik**, Anda otomatis diarahkan kembali ke **Dashboard**.
 
 ---
 
 ### M3. Sesi Latihan (Member View)
 
-**Path:** `/dashboard/sessions`
-
-Menampilkan riwayat kehadiran **milik Anda sendiri**. Kolom: tanggal, waktu, nama trainer, metode check-in, dan status.
+Menampilkan riwayat kehadiran **milik Anda sendiri**: tanggal, waktu, nama trainer, metode, dan status.
 
 ---
 
@@ -422,24 +354,18 @@ Satu akun bisa memiliki **lebih dari satu role** secara bersamaan. Contoh:
 1. Jika akun Anda memiliki lebih dari 1 role, di **header bar** (pojok kanan atas) akan muncul tombol-tombol role.
 2. Klik role yang ingin Anda aktifkan.
 3. Dashboard dan menu sidebar akan **langsung berubah** sesuai role yang dipilih.
-4. Role aktif menentukan:
-   - Menu apa saja yang muncul di sidebar.
-   - Data apa yang ditampilkan di dashboard.
-   - Fitur apa yang bisa diakses.
 
-### Aturan Multi-Role
+### Aturan
 
 | Aturan | Detail |
 |---|---|
-| Akses menu terbatas | Hanya menu sesuai role aktif yang muncul |
+| Menu terbatas per role | Hanya menu sesuai role aktif yang muncul |
 | Self check-in dilarang | Jika Anda Trainer + Member, Anda tidak bisa scan QR sendiri |
 | Penambahan role ADMIN | Hanya bisa dilakukan oleh ADMIN lain |
 
 ---
 
 ## Alur QR Absensi (End-to-End)
-
-Berikut alur lengkap proses absensi dari awal hingga selesai:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -463,127 +389,57 @@ Berikut alur lengkap proses absensi dari awal hingga selesai:
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    PROSES BACKEND (OTOMATIS)                    │
-│                                                                 │
-│  9.  Validasi token QR (tidak expired, belum dipakai)           │
-│  10. Validasi member punya kuota sesi aktif                     │
-│  11. BEGIN TRANSACTION:                                         │
-│      a. Tandai token QR sebagai "used"                          │
-│      b. Buat record Attendance baru                             │
-│      c. Kurangi remainingSessions member sebanyak 1             │
-│      d. Catat di AuditLog                                       │
-│  12. COMMIT TRANSACTION                                         │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
 │                    HASIL                                         │
 │                                                                 │
-│  13. Trainer: Layar hijau "Verifikasi Sukses" + info member     │
+│  9.  Trainer: Layar hijau "Verifikasi Sukses" + info member     │
 │      → Klik "Scan Kembali" untuk lanjut scan member lain        │
-│  14. Member: Layar otomatis berubah "Absensi Berhasil!"         │
+│  10. Member: Layar otomatis berubah "Absensi Berhasil!"         │
 │      → Auto-redirect ke Dashboard setelah 3 detik               │
-│  15. Dashboard member terupdate (sisa kuota berkurang 1)        │
-│  16. Admin bisa melihat log di Audit Log                        │
+│  11. Kuota sesi member berkurang 1 secara otomatis              │
+│  12. Admin bisa melihat catatan di Audit Log                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Deployment ke Vercel
+## Install PWA di HP
 
-### Konfigurasi Wajib
+PTMS Dev bisa di-install di HP layaknya aplikasi native:
 
-| Setting | Value |
-|---|---|
-| Framework Preset | **Next.js** |
-| Root Directory | **web** |
-| Build Command | `prisma generate && next build` (otomatis dari package.json) |
-| Node.js Version | 18.x atau 20.x |
+### Android (Chrome)
+1. Buka [https://ptms-pwa.vercel.app](https://ptms-pwa.vercel.app) di Chrome.
+2. Ketuk menu **⋮** (titik tiga) di pojok kanan atas.
+3. Pilih **"Add to Home Screen"** atau **"Install App"**.
+4. Aplikasi akan muncul di home screen.
 
-### Langkah Deploy
-
-1. Push code ke GitHub repository.
-2. Buka [vercel.com](https://vercel.com) → Import repository.
-3. Set **Root Directory** ke `web`.
-4. Set **Framework Preset** ke `Next.js`.
-5. Tambahkan semua environment variables (lihat bagian berikutnya).
-6. Klik **Deploy**.
+### iPhone (Safari)
+1. Buka [https://ptms-pwa.vercel.app](https://ptms-pwa.vercel.app) di Safari.
+2. Ketuk ikon **Share** (kotak dengan panah ke atas).
+3. Scroll dan pilih **"Add to Home Screen"**.
+4. Ketuk **"Add"**.
 
 ---
 
-## Environment Variables
+## FAQ
 
-Buat file `.env` di folder `web/` dengan variabel berikut:
+**Q: Member tidak bisa generate QR, muncul error "tidak memiliki paket aktif"?**  
+A: Admin harus mengaktifkan paket latihan untuk member tersebut melalui tab **Langganan Member** di halaman Manajemen User.
 
-```env
-# Supabase Auth
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+**Q: QR Code expired terus?**  
+A: QR berlaku 30 detik dan auto-refresh. Pastikan koneksi internet stabil. Klik "Perbarui Manual" jika perlu.
 
-# Database (gunakan pooled connection untuk Vercel)
-DATABASE_URL="postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://user:pass@db.xxx.supabase.co:5432/postgres"
-```
+**Q: Kamera tidak muncul saat Trainer ingin scan?**  
+A: Fitur kamera membutuhkan HTTPS. Pastikan membuka via link demo resmi, bukan HTTP biasa.
 
-> ⚠️ **Penting:** Untuk deployment Vercel, gunakan port `6543` (pgBouncer) pada `DATABASE_URL`, bukan port `5432` langsung. Ini mencegah exhaustion connection pool pada environment serverless.
+**Q: Saya punya role Trainer + Member, bisa scan QR sendiri?**  
+A: Tidak. Sistem memblokir self check-in untuk menjaga integritas data.
 
----
+**Q: Sesi member salah terpotong, bagaimana cara koreksi?**  
+A: Admin bisa menambah sesi secara manual melalui tab **Langganan Member** → klik tombol **`+`** di kolom Kuota Sesi.
 
-## FAQ & Troubleshooting
-
-### Q: Halaman menampilkan 404 setelah deploy di Vercel?
-**A:** Pastikan **Root Directory** diset ke `web` dan **Framework Preset** diset ke `Next.js` di dashboard Vercel.
-
-### Q: Member tidak bisa generate QR, muncul error "tidak memiliki paket aktif"?
-**A:** Admin harus mengaktifkan paket latihan untuk member tersebut melalui tab **Langganan Member** di halaman Manajemen User.
-
-### Q: QR Code expired terus?
-**A:** QR berlaku 30 detik dan auto-refresh. Pastikan koneksi internet stabil. Member juga bisa klik "Perbarui Manual" untuk generate QR baru.
-
-### Q: Trainer tidak bisa scan — kamera tidak muncul?
-**A:** Fitur kamera membutuhkan HTTPS. Di localhost, kamera berjalan normal. Di production, pastikan domain menggunakan HTTPS (Vercel otomatis menyediakan ini).
-
-### Q: Saya punya role Trainer + Member, bisa scan QR sendiri?
-**A:** Tidak. Sistem memblokir self check-in untuk menjaga integritas data absensi.
-
-### Q: Bagaimana cara menambah sesi member yang salah terpotong?
-**A:** Admin bisa menambah sesi secara manual melalui tab **Langganan Member** → klik tombol **`+`** di kolom Kuota Sesi member yang bersangkutan.
-
-### Q: Build error: "Cannot find module @prisma/client"?
-**A:** Pastikan script build di `package.json` adalah `prisma generate && next build`. Ini memastikan Prisma Client ter-generate sebelum Next.js melakukan kompilasi.
-
-### Q: Bagaimana cara install PWA di HP?
-**A:** Buka URL aplikasi di browser HP → Ketuk menu (⋮) → Pilih "Add to Home Screen" atau "Install App". Aplikasi akan muncul di home screen layaknya app native.
+**Q: Bagaimana cara install di HP?**  
+A: Lihat bagian [Install PWA di HP](#install-pwa-di-hp) di atas.
 
 ---
 
-## Struktur Folder Proyek
-
-```
-ptms-pwa/
-├── SD_PTMS.md              # System Design Document (teknis)
-├── README.md               # Panduan operasional ini
-└── web/                    # Next.js application
-    ├── prisma/
-    │   └── schema.prisma   # Database schema
-    ├── src/
-    │   ├── app/
-    │   │   ├── login/      # Halaman login
-    │   │   ├── register/   # Halaman registrasi
-    │   │   ├── dashboard/  # Dashboard utama
-    │   │   │   ├── attendance/  # QR absensi (MemberQr + TrainerScanner)
-    │   │   │   ├── users/       # Manajemen user (Admin only)
-    │   │   │   ├── sessions/    # Riwayat sesi latihan
-    │   │   │   └── logs/        # Audit log (Admin only)
-    │   │   └── manifest.ts # PWA manifest
-    │   └── lib/
-    │       ├── actions/    # Server Actions (auth, qr, packages)
-    │       ├── prisma.ts   # Prisma client singleton
-    │       └── supabase/   # Supabase client helpers
-    └── package.json
-```
-
----
-
-*Dokumen ini menjelaskan flow operasional PTMS Dev v1.0. Untuk dokumentasi teknis arsitektur dan database schema, lihat [SD_PTMS.md](./SD_PTMS.md).*
+*© 2026 Perpahmian.ltd — PTMS Dev v1.0*
