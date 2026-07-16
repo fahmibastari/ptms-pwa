@@ -2,36 +2,21 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { Role } from "@/generated/prisma";
+import { requireAuth } from "@/lib/auth";
+import { isQrGenerateRateLimited, isQrVerifyRateLimited } from "@/lib/rate-limit";
+import { pruneExpiredQrTokens } from "@/lib/qr-cleanup";
 import crypto from "crypto";
 
-/**
- * Generates a secure, short-lived QR token for the authenticated member.
- */
-export async function generateQrToken() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+const TOKEN_REGEX = /^[a-f0-9]{64}$/;
 
-  if (!user) {
-    return { error: "Silakan login terlebih dahulu." };
-  }
+function isValidToken(token: string): boolean {
+  return TOKEN_REGEX.test(token);
+}
 
-  // 1. Verify user role
-  const dbRoles = await prisma.userRole.findMany({
-    where: { userId: user.id },
-    select: { role: true },
-  });
-  const availableRoles = dbRoles.map((r) => r.role);
-  const activeRole = user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
-
-  if (activeRole !== "MEMBER") {
-    return { error: "Hanya akun dengan role MEMBER yang dapat menghasilkan QR Code." };
-  }
-
-  // 2. Fetch member profile
+async function ensureMemberProfile(userId: string) {
   let member = await prisma.member.findUnique({
-    where: { userId: user.id },
+    where: { userId },
     include: {
       subscriptions: {
         where: {
@@ -49,11 +34,8 @@ export async function generateQrToken() {
   });
 
   if (!member) {
-    // Lazy initialize Member profile if it does not exist
     member = await prisma.member.create({
-      data: {
-        userId: user.id,
-      },
+      data: { userId },
       include: {
         subscriptions: {
           where: {
@@ -71,54 +53,73 @@ export async function generateQrToken() {
     });
   }
 
-  // 3. Verify if member has remaining sessions in Subscription or Membership
-  let hasActiveSubscription = member.subscriptions.length > 0;
-  let hasActiveMembership = member.memberships.length > 0;
+  return member;
+}
 
-  if (!hasActiveSubscription && !hasActiveMembership) {
-    try {
-      // Auto-provision a default trial package for testing if none exists
-      let defaultPackage = await prisma.package.findFirst();
-      if (!defaultPackage) {
-        defaultPackage = await prisma.package.create({
-          data: {
-            name: "Trial 10 Sesi (Auto-provisioned)",
-            price: 0,
-            sessions: 10,
-            durationMonths: 1,
-            isActive: true,
-          },
-        });
-      }
+async function ensureTrainerProfile(userId: string) {
+  let trainer = await prisma.trainer.findUnique({
+    where: { userId },
+  });
 
-      const newSub = await prisma.subscription.create({
-        data: {
-          memberId: member.id,
-          packageId: defaultPackage.id,
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-          status: "ACTIVE",
-          remainingSessions: 10,
-        },
-      });
-
-      member.subscriptions.push(newSub);
-      hasActiveSubscription = true;
-    } catch (err) {
-      return {
-        error: "Anda tidak memiliki paket aktif, dan pembuatan paket uji coba gagal. Silakan hubungi Admin.",
-      };
-    }
+  if (!trainer) {
+    trainer = await prisma.trainer.create({
+      data: { userId },
+    });
   }
 
-  // 4. Generate 256-bit cryptographically secure token
+  return trainer;
+}
+
+function canTrainerVerifyMember(
+  trainer: { id: string; assignedMemberIds: string[] },
+  member: { id: string; trainerId: string | null }
+): boolean {
+  if (member.trainerId === null) {
+    return true;
+  }
+  if (member.trainerId === trainer.id) {
+    return true;
+  }
+  return trainer.assignedMemberIds.includes(member.id);
+}
+
+/**
+ * Generates a secure, short-lived QR token for the authenticated member.
+ */
+export async function generateQrToken() {
+  const ctx = await requireAuth();
+
+  if (!ctx.availableRoles.includes(Role.MEMBER)) {
+    return { error: "Hanya akun dengan role MEMBER yang dapat menghasilkan QR Code." };
+  }
+
+  if (ctx.activeRole !== Role.MEMBER) {
+    return { error: "Silakan aktifkan role MEMBER terlebih dahulu untuk menghasilkan QR Code." };
+  }
+
+  if (await isQrGenerateRateLimited(ctx.user.id)) {
+    return { error: "Terlalu banyak permintaan QR. Tunggu sebentar lalu coba lagi." };
+  }
+
+  await pruneExpiredQrTokens();
+
+  const member = await ensureMemberProfile(ctx.user.id);
+  const hasActiveSubscription = member.subscriptions.length > 0;
+  const hasActiveMembership = member.memberships.length > 0;
+
+  if (!hasActiveSubscription && !hasActiveMembership) {
+    return {
+      error: "Anda tidak memiliki paket aktif. Silakan hubungi Admin untuk mengaktifkan langganan.",
+    };
+  }
+
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 30 * 1000); // Expires in 30 seconds
+  const expiresAt = new Date(Date.now() + 30 * 1000);
 
   try {
     const qrRecord = await prisma.qrToken.create({
       data: {
-        userId: user.id,
+        userId: ctx.user.id,
         token,
         expiresAt,
       },
@@ -129,50 +130,36 @@ export async function generateQrToken() {
       token: qrRecord.token,
       expiresAt: qrRecord.expiresAt.toISOString(),
     };
-  } catch (err: any) {
-    return { error: `Gagal membuat QR token: ${err.message}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Gagal membuat QR token.";
+    return { error: `Gagal membuat QR token: ${message}` };
   }
 }
 
 /**
- * Verifies a scanned QR token, records attendance, and reduces session count in a single transaction.
+ * Verifies a scanned QR token, records attendance, and reduces session count atomically.
  */
 export async function verifyQrToken(token: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "Silakan login terlebih dahulu." };
+  if (!isValidToken(token)) {
+    return { error: "Format QR Code tidak valid." };
   }
 
-  // 1. Verify verifier role (Must be TRAINER)
-  const dbRoles = await prisma.userRole.findMany({
-    where: { userId: user.id },
-    select: { role: true },
-  });
-  const availableRoles = dbRoles.map((r) => r.role);
-  const activeRole = user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
+  const ctx = await requireAuth();
 
-  if (activeRole !== "TRAINER") {
+  if (!ctx.availableRoles.includes(Role.TRAINER)) {
     return { error: "Hanya akun dengan role TRAINER yang dapat melakukan verifikasi QR Code." };
   }
 
-  // Fetch Trainer profile
-  let trainer = await prisma.trainer.findUnique({
-    where: { userId: user.id },
-  });
-
-  if (!trainer) {
-    trainer = await prisma.trainer.create({
-      data: {
-        userId: user.id,
-      },
-    });
+  if (ctx.activeRole !== Role.TRAINER) {
+    return { error: "Silakan aktifkan role TRAINER terlebih dahulu untuk memverifikasi QR Code." };
   }
 
-  // 2. Fetch the QrToken
+  if (await isQrVerifyRateLimited(ctx.user.id)) {
+    return { error: "Terlalu banyak verifikasi QR. Tunggu sebentar lalu coba lagi." };
+  }
+
+  const trainer = await ensureTrainerProfile(ctx.user.id);
+
   const qrTokenRecord = await prisma.qrToken.findUnique({
     where: { token },
     include: {
@@ -205,20 +192,14 @@ export async function verifyQrToken(token: string) {
     return { error: "QR Code tidak valid atau tidak dikenali." };
   }
 
-  if (qrTokenRecord.used) {
-    return { error: "QR Code ini sudah pernah digunakan sebelumnya." };
-  }
-
-  if (new Date() > qrTokenRecord.expiresAt) {
-    return { error: "QR Code sudah kadaluarsa. Silakan minta member me-refresh QR Code." };
+  if (qrTokenRecord.userId === ctx.user.id) {
+    return { error: "Self check-in tidak diizinkan. Trainer tidak dapat memverifikasi QR sendiri." };
   }
 
   let member = qrTokenRecord.user.member;
   if (!member) {
     member = await prisma.member.create({
-      data: {
-        userId: qrTokenRecord.userId,
-      },
+      data: { userId: qrTokenRecord.userId },
       include: {
         subscriptions: {
           where: {
@@ -238,7 +219,12 @@ export async function verifyQrToken(token: string) {
     });
   }
 
-  // 3. Determine package/session to deduct (Subscription or Membership)
+  if (!canTrainerVerifyMember(trainer, member)) {
+    return {
+      error: "Member ini terdaftar di bawah trainer lain. Hubungi Admin untuk reassignment.",
+    };
+  }
+
   const activeSub = member.subscriptions[0];
   const activeMembership = member.memberships[0];
 
@@ -248,17 +234,31 @@ export async function verifyQrToken(token: string) {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // a. Mark token as used
-      await tx.qrToken.update({
-        where: { id: qrTokenRecord.id },
+      const now = new Date();
+      const lockedToken = await tx.qrToken.updateMany({
+        where: {
+          id: qrTokenRecord.id,
+          used: false,
+          expiresAt: { gt: now },
+        },
         data: {
           used: true,
-          usedAt: new Date(),
+          usedAt: now,
           usedBy: trainer.id,
         },
       });
 
-      // b. Deduct 1 session from oldest active package
+      if (lockedToken.count === 0) {
+        throw new Error("TOKEN_UNAVAILABLE");
+      }
+
+      if (!member.trainerId) {
+        await tx.member.update({
+          where: { id: member.id },
+          data: { trainerId: trainer.id },
+        });
+      }
+
       let consumedType: "SUBSCRIPTION" | "MEMBERSHIP";
       let consumedId: string;
       let newRemaining = 0;
@@ -289,24 +289,22 @@ export async function verifyQrToken(token: string) {
         });
       }
 
-      // c. Insert Attendance record
       const attendance = await tx.attendance.create({
         data: {
           memberId: member.id,
           trainerId: trainer.id,
           membershipId: consumedType === "MEMBERSHIP" ? consumedId : null,
-          date: new Date(),
-          time: new Date(),
+          date: now,
+          time: now,
           status: "PRESENT",
           checkInType: "QR_SCAN",
           notes: `Check-in via QR Scan. Sisa sesi: ${newRemaining}`,
         },
       });
 
-      // d. Create Audit Log
       await tx.auditLog.create({
         data: {
-          actorId: user.id,
+          actorId: ctx.user.id,
           action: "VERIFY_QR",
           entityType: "ATTENDANCE",
           entityId: attendance.id,
@@ -331,23 +329,42 @@ export async function verifyQrToken(token: string) {
       success: true,
       message: `Absensi ${result.memberName} berhasil dicatat! Sisa sesi: ${result.remainingSessions}.`,
     };
-  } catch (err: any) {
-    return { error: `Gagal memproses transaksi absensi: ${err.message}` };
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === "TOKEN_UNAVAILABLE") {
+      return { error: "QR Code sudah digunakan atau kadaluarsa. Minta member me-refresh QR Code." };
+    }
+    const message = err instanceof Error ? err.message : "Gagal memproses transaksi.";
+    return { error: `Gagal memproses transaksi absensi: ${message}` };
   }
 }
 
 /**
- * Checks if a QR token has been used.
+ * Checks if a QR token has been used. Only the token owner may poll status.
  */
 export async function checkQrTokenStatus(token: string) {
+  if (!isValidToken(token)) {
+    return { error: "Format token tidak valid." };
+  }
+
+  const ctx = await requireAuth();
+
   try {
     const qrRecord = await prisma.qrToken.findUnique({
       where: { token },
-      select: { used: true },
+      select: { used: true, userId: true },
     });
-    return { success: true, used: !!qrRecord?.used };
-  } catch (err: any) {
-    return { error: err.message };
+
+    if (!qrRecord) {
+      return { error: "Token tidak ditemukan." };
+    }
+
+    if (qrRecord.userId !== ctx.user.id) {
+      return { error: "Anda tidak memiliki akses ke status token ini." };
+    }
+
+    return { success: true, used: qrRecord.used };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Gagal memeriksa status token.";
+    return { error: message };
   }
 }
-

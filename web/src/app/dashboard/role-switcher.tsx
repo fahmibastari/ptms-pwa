@@ -9,10 +9,11 @@ interface RoleSwitcherProps {
   activeRole: string;
 }
 
+/* Role chip colors — via semantic tokens (no hardcoded palette) */
 const ROLE_COLOR: Record<string, string> = {
-  ADMIN: "bg-red-500/15 text-red-400 border-red-500/25",
-  TRAINER: "bg-violet-500/15 text-violet-400 border-violet-500/25",
-  MEMBER: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+  ADMIN:   "bg-role-admin-bg   text-role-admin-text   border-role-admin-border",
+  TRAINER: "bg-role-trainer-bg text-role-trainer-text border-role-trainer-border",
+  MEMBER:  "bg-role-member-bg  text-role-member-text  border-role-member-border",
 };
 
 export function RoleSwitcher({ availableRoles, activeRole }: RoleSwitcherProps) {
@@ -38,18 +39,26 @@ export function RoleSwitcher({ availableRoles, activeRole }: RoleSwitcherProps) 
             key={role}
             disabled={isPending}
             onClick={() => handleRoleChange(role)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold border transition-all cursor-pointer disabled:opacity-50 ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold border cursor-pointer disabled:opacity-50 ${
               isActive
                 ? color
-                : "bg-transparent text-muted border-white/[0.08] hover:bg-white/[0.04] hover:text-white"
+                : "bg-transparent border-card-border text-muted hover:bg-card hover:text-foreground"
             }`}
+            style={{
+              /* gate 10: specify transition property */
+              transition: "background var(--dur-short) var(--ease-out), color var(--dur-short) var(--ease-out)",
+            }}
           >
-            {isPending && !isActive && <RefreshCw size={10} className="animate-spin" />}
+            {isPending && !isActive && (
+              <RefreshCw size={10} className="animate-spin" />
+            )}
             {role}
           </button>
         );
       })}
-      {error && <span className="text-[10px] text-red-400 ml-1">{error}</span>}
+      {error && (
+        <span className="text-[10px] text-error ml-1">{error}</span>
+      )}
     </div>
   );
 }

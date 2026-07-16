@@ -1,30 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, hasAdminRole } from "@/lib/auth";
 import { AdminView } from "../admin-view";
-import { ShieldCheck, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 export default async function UsersPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const ctx = await requireAuth();
+  const isAdmin = await hasAdminRole(ctx.user.id);
 
-  if (!user) {
-    redirect("/login");
-  }
-
-  // Fetch user roles to verify Admin authorization
-  const dbRoles = await prisma.userRole.findMany({
-    where: { userId: user.id },
-    select: { role: true },
-  });
-
-  const availableRoles = dbRoles.map((r) => r.role);
-  const activeRole = user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
-
-  // Strict route protection
-  if (activeRole !== "ADMIN") {
+  if (!isAdmin) {
     return (
       <div className="glass-card px-8 py-12 text-center animate-fade-in">
         <AlertCircle size={32} className="text-error mx-auto mb-4 opacity-75" />
@@ -36,7 +19,6 @@ export default async function UsersPage() {
     );
   }
 
-  // Fetch all users with their roles for the Admin view
   const allUsers = await prisma.user.findMany({
     include: {
       roles: true,

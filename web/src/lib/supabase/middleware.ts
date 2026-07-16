@@ -18,9 +18,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
+          supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -29,51 +27,33 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Refresh session — this keeps the user logged in
+  // Use getSession() (reads cookie, no network roundtrip) for fast auth check.
+  // Role-based authorization is handled by requireAuth() inside each
+  // server component — no need to duplicate that logic here.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  // Protected routes: redirect unauthenticated users to login
+  const isLoggedIn = !!session;
+  const pathname = request.nextUrl.pathname;
+
   const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/register");
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password");
 
-  if (!user && !isAuthRoute && request.nextUrl.pathname !== "/") {
+  // Redirect unauthenticated users to login
+  if (!isLoggedIn && !isAuthRoute && pathname !== "/" && pathname !== "/offline") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from auth pages
-  if (user && isAuthRoute) {
+  // Redirect already-logged-in users away from auth pages
+  if (isLoggedIn && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
-  }
-
-  // Enforce server-side role check
-  if (user) {
-    const activeRole = user.user_metadata?.active_role || "MEMBER";
-    const path = request.nextUrl.pathname;
-
-    if (path.startsWith("/admin") && activeRole !== "ADMIN") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
-
-    if (path.startsWith("/trainer") && activeRole !== "TRAINER") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
-
-    if (path.startsWith("/member") && activeRole !== "MEMBER") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    }
   }
 
   return supabaseResponse;

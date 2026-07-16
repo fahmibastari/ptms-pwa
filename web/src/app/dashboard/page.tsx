@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, getWibDayBounds, getWibMonthStart } from "@/lib/auth";
+import { Role } from "@/generated/prisma";
 import {
   Users,
   Dumbbell,
@@ -17,31 +17,11 @@ import {
 import { format } from "date-fns";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const dbRoles = await prisma.userRole.findMany({
-    where: { userId: user.id },
-    select: { role: true },
-  });
-
-  const availableRoles = dbRoles.map((r) => r.role);
-  const activeRole =
-    user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
+  const { user, activeRole, availableRoles } = await requireAuth();
 
   const greeting = getGreeting();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  const { startUtc: todayStart, endUtc: todayEnd } = getWibDayBounds();
+  const startOfMonth = getWibMonthStart();
 
   // 1. ADMIN DATA FETCHING
   let totalUsers = 0;
@@ -49,18 +29,21 @@ export default async function DashboardPage() {
   let attendanceToday = 0;
   let sessionsThisMonth = 0;
 
-  if (activeRole === "ADMIN") {
+  if (activeRole === Role.ADMIN) {
     const [usersCount, trainersCount, todayCount, monthCount] = await Promise.all([
       prisma.user.count(),
-      prisma.userRole.count({ where: { role: "TRAINER" } }),
+      prisma.userRole.count({ where: { role: Role.TRAINER } }),
       prisma.attendance.count({
         where: {
-          date: today,
+          createdAt: {
+            gte: todayStart,
+            lte: todayEnd,
+          },
         },
       }),
       prisma.attendance.count({
         where: {
-          date: {
+          createdAt: {
             gte: startOfMonth,
           },
         },
@@ -78,7 +61,7 @@ export default async function DashboardPage() {
   let trainerSessionsThisMonth = 0;
   let trainerRecentClients: any[] = [];
 
-  if (activeRole === "TRAINER") {
+  if (activeRole === Role.TRAINER) {
     let trainer = await prisma.trainer.findUnique({
       where: { userId: user.id },
     });
@@ -127,13 +110,14 @@ export default async function DashboardPage() {
 
   // 3. MEMBER DATA FETCHING
   let memberRemainingSessions = 0;
+  let memberTotalPackageSessions = 0;
   let memberSessionsThisMonth = 0;
   let memberTotalSessions = 0;
   let memberActivePackageName = "Tidak ada paket aktif";
   let memberExpiryDate: Date | null = null;
   let memberRecentAttendances: any[] = [];
 
-  if (activeRole === "MEMBER") {
+  if (activeRole === Role.MEMBER) {
     let member = await prisma.member.findUnique({
       where: { userId: user.id },
       include: {
@@ -169,15 +153,11 @@ export default async function DashboardPage() {
 
     memberRemainingSessions =
       (activeSub?.remainingSessions || 0) + (activeMembership?.remainingSessions || 0);
+    memberTotalPackageSessions =
+      activeSub?.package.sessions || activeMembership?.package.sessions || 0;
     memberActivePackageName =
-      activeSub?.package.name || activeMembership?.package.name || "Trial 10 Sesi (Auto-provisioned)";
-    
-    // Fallback: If no subscription is loaded yet because page hasn't reloaded after lazy initialization
-    if (!activeSub && !activeMembership) {
-      memberRemainingSessions = 10;
-    }
-    
-    memberExpiryDate = activeSub?.endDate || activeMembership?.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      activeSub?.package.name || activeMembership?.package.name || "Tidak ada paket aktif";
+    memberExpiryDate = activeSub?.endDate || activeMembership?.endDate || null;
 
     const [monthCount, totalCount, recentLogs] = await Promise.all([
       prisma.attendance.count({
@@ -218,17 +198,17 @@ export default async function DashboardPage() {
       <div>
         <p className="text-muted text-sm font-medium">{greeting}</p>
         <h1 className="text-2xl font-bold tracking-tight mt-1">
-          {user.user_metadata?.full_name || "Dashboard"}
+          {user.fullName || "Dashboard"}
         </h1>
       </div>
 
       {/* Sync Warning */}
       {availableRoles.length === 0 && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] px-6 py-5">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-6 py-5">
           <div className="flex gap-4">
-            <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
+            <AlertTriangle size={20} className="text-amber-700 shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-sm font-semibold text-amber-400">
+              <h4 className="text-sm font-semibold text-amber-700">
                 Sinkronisasi database belum aktif
               </h4>
               <p className="text-xs text-muted mt-1.5 leading-relaxed max-w-xl">
@@ -242,42 +222,42 @@ export default async function DashboardPage() {
       )}
 
       {/* ── ADMIN OVERVIEW ── */}
-      {activeRole === "ADMIN" && (
+      {activeRole === Role.ADMIN && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <StatCard
               icon={<Users size={18} />}
               label="Total Pengguna"
               value={totalUsers}
-              accent="text-blue-400"
-              bg="bg-blue-500/10"
+              accent="text-blue-600"
+              bg="bg-blue-50"
             />
             <StatCard
               icon={<Dumbbell size={18} />}
               label="Trainer Aktif"
               value={totalTrainers}
-              accent="text-violet-400"
-              bg="bg-violet-500/10"
+              accent="text-violet-600"
+              bg="bg-violet-50"
             />
             <StatCard
               icon={<QrCode size={18} />}
               label="Absensi Hari Ini"
               value={attendanceToday}
-              accent="text-emerald-400"
-              bg="bg-emerald-500/10"
+              accent="text-emerald-600"
+              bg="bg-emerald-50"
             />
             <StatCard
               icon={<TrendingUp size={18} />}
               label="Sesi Bulan Ini"
               value={sessionsThisMonth}
-              accent="text-amber-400"
-              bg="bg-amber-500/10"
+              accent="text-amber-600"
+              bg="bg-amber-50"
             />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 glass-card p-6">
-              <h3 className="text-sm font-semibold mb-4 text-white">Panduan Administrator</h3>
+              <h3 className="text-sm font-semibold mb-4">Panduan Administrator</h3>
               <div className="space-y-4 text-xs text-muted leading-relaxed">
                 <p>
                   Sebagai Administrator, Anda memiliki akses penuh untuk mengatur otorisasi pengguna. Buka tab <b>Manajemen User</b> di menu samping untuk mengaktifkan akses Trainer atau Admin kepada pengguna lain.
@@ -289,7 +269,7 @@ export default async function DashboardPage() {
             </div>
             <div className="glass-card p-6 flex flex-col justify-center items-center text-center">
               <Award className="text-accent mb-3" size={32} />
-              <h4 className="text-xs font-semibold text-white">SaaS-Grade PTMS Dev</h4>
+              <h4 className="text-xs font-semibold">SaaS-Grade PTMS Dev</h4>
               <p className="text-[10px] text-muted mt-2 max-w-[200px]">
                 Sistem absensi berbasis QR Code terenkripsi instan 30 detik untuk keandalan pencatatan kehadiran traineer.
               </p>
@@ -299,29 +279,29 @@ export default async function DashboardPage() {
       )}
 
       {/* ── TRAINER OVERVIEW ── */}
-      {activeRole === "TRAINER" && (
+      {activeRole === Role.TRAINER && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <StatCard
               icon={<Users size={18} />}
               label="Member Dibimbing"
               value={trainerTotalMembers}
-              accent="text-violet-400"
-              bg="bg-violet-500/10"
+              accent="text-violet-600"
+              bg="bg-violet-50"
             />
             <StatCard
               icon={<Activity size={18} />}
               label="Sesi Scan Bulan Ini"
               value={trainerSessionsThisMonth}
-              accent="text-blue-400"
-              bg="bg-blue-500/10"
+              accent="text-blue-600"
+              bg="bg-blue-50"
             />
             <StatCard
               icon={<CheckCircle2 size={18} />}
               label="Total Sesi Sukses"
               value={trainerTotalSessions}
-              accent="text-emerald-400"
-              bg="bg-emerald-500/10"
+              accent="text-emerald-600"
+              bg="bg-emerald-50"
             />
           </div>
 
@@ -337,20 +317,20 @@ export default async function DashboardPage() {
                   Belum ada riwayat check-in member yang Anda proses.
                 </div>
               ) : (
-                <div className="divide-y divide-white/[0.04]">
+                <div className="divide-y divide-gray-100">
                   {trainerRecentClients.map((att) => (
                     <div key={att.id} className="flex items-center justify-between py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-white">
+                        <div className="w-8 h-8 rounded-full bg-card border border-card-border flex items-center justify-center text-xs font-semibold">
                           {(att.member.user.fullName?.[0] || "M").toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-white">{att.member.user.fullName}</p>
+                          <p className="text-xs font-semibold">{att.member.user.fullName}</p>
                           <p className="text-[10px] text-muted">{att.member.user.email}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
                           <CheckCircle2 size={10} /> Sukses
                         </span>
                         <p className="text-[9px] text-muted mt-0.5">
@@ -366,7 +346,7 @@ export default async function DashboardPage() {
             <div className="glass-card p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Clock size={16} className="text-accent" />
-                <h4 className="text-xs font-semibold text-white">Pemberitahuan Trainer</h4>
+                <h4 className="text-xs font-semibold">Pemberitahuan Trainer</h4>
               </div>
               <p className="text-[11px] text-muted leading-relaxed">
                 Gunakan menu <b>QR Absensi</b> untuk memverifikasi QR Code latihan milik member. Setiap scan yang sukses akan memotong sisa sesi member dan tercatat di riwayat kehadiran secara instan.
@@ -377,29 +357,29 @@ export default async function DashboardPage() {
       )}
 
       {/* ── MEMBER OVERVIEW ── */}
-      {activeRole === "MEMBER" && (
+      {activeRole === Role.MEMBER && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <StatCard
               icon={<Award size={18} />}
               label="Sisa Kuota Sesi"
               value={memberRemainingSessions}
-              accent="text-emerald-400"
-              bg="bg-emerald-500/10"
+              accent="text-emerald-600"
+              bg="bg-emerald-50"
             />
             <StatCard
               icon={<Activity size={18} />}
               label="Latihan Bulan Ini"
               value={memberSessionsThisMonth}
-              accent="text-blue-400"
-              bg="bg-blue-500/10"
+              accent="text-blue-600"
+              bg="bg-blue-50"
             />
             <StatCard
               icon={<CheckCircle2 size={18} />}
               label="Total Kehadiran"
               value={memberTotalSessions}
-              accent="text-violet-400"
-              bg="bg-violet-500/10"
+              accent="text-violet-600"
+              bg="bg-violet-50"
             />
           </div>
 
@@ -408,21 +388,33 @@ export default async function DashboardPage() {
             <div className="glass-card p-6 space-y-4">
               <div className="flex items-center gap-2">
                 <Award size={16} className="text-accent" />
-                <h4 className="text-xs font-semibold text-white">Paket Aktif Anda</h4>
+                <h4 className="text-xs font-semibold">Paket Aktif Anda</h4>
               </div>
               <div className="space-y-3 pt-2">
                 <div>
                   <p className="text-[10px] text-muted uppercase">Nama Paket</p>
-                  <p className="text-xs font-semibold text-white mt-0.5">{memberActivePackageName}</p>
+                  <p className="text-xs font-semibold mt-0.5">{memberActivePackageName}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted uppercase">Tanggal Kadaluarsa</p>
-                  <p className="text-xs font-semibold text-white mt-0.5">
+                  <p className="text-xs font-semibold mt-0.5">
                     {memberExpiryDate ? format(new Date(memberExpiryDate), "dd MMMM yyyy") : "-"}
                   </p>
                 </div>
-                <div className="h-1 bg-white/[0.04] rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500" style={{ width: `${(memberRemainingSessions / 10) * 100}%` }} />
+                <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500"
+                    style={{
+                      width: `${
+                        memberTotalPackageSessions > 0
+                          ? Math.min(
+                              100,
+                              (memberRemainingSessions / memberTotalPackageSessions) * 100
+                            )
+                          : 0
+                      }%`,
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -436,15 +428,15 @@ export default async function DashboardPage() {
                   Belum ada riwayat kehadiran latihan yang tercatat.
                 </div>
               ) : (
-                <div className="divide-y divide-white/[0.04]">
+                <div className="divide-y divide-gray-100">
                   {memberRecentAttendances.map((att) => (
                     <div key={att.id} className="flex items-center justify-between py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                        <div className="p-1.5 rounded-lg bg-gray-100">
                           <Calendar size={13} className="text-muted" />
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-white">
+                          <p className="text-xs font-medium">
                             {format(new Date(att.date), "EEEE, dd MMMM yyyy")}
                           </p>
                           <p className="text-[10px] text-muted">
@@ -452,7 +444,7 @@ export default async function DashboardPage() {
                           </p>
                         </div>
                       </div>
-                      <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                         Hadir
                       </span>
                     </div>

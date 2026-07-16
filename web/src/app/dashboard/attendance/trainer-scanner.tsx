@@ -157,17 +157,18 @@ export function TrainerScanner() {
   return (
     <div className="max-w-md mx-auto space-y-6">
       {/* Navigation tabs */}
-      <div className="flex rounded-lg bg-white/[0.03] p-1 border border-white/[0.06]">
+      <div className="flex rounded-lg bg-gray-100 p-1 border border-gray-200">
         <button
           onClick={() => {
             setActiveTab("camera");
             setResult(null);
           }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md cursor-pointer transition-colors ${
             activeTab === "camera"
-              ? "bg-accent text-white shadow-md"
-              : "text-muted hover:text-white"
+              ? "bg-accent shadow-sm"
+              : "text-muted hover:text-foreground"
           }`}
+          style={activeTab === "camera" ? { color: "var(--accent-ink)" } : {}}
         >
           <Camera size={14} />
           Kamera Scanner
@@ -177,11 +178,12 @@ export function TrainerScanner() {
             setActiveTab("manual");
             setResult(null);
           }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-md cursor-pointer transition-colors ${
             activeTab === "manual"
-              ? "bg-accent text-white shadow-md"
-              : "text-muted hover:text-white"
+              ? "bg-accent shadow-sm"
+              : "text-muted hover:text-foreground"
           }`}
+          style={activeTab === "manual" ? { color: "var(--accent-ink)" } : {}}
         >
           <Keyboard size={14} />
           Input Manual
@@ -197,28 +199,29 @@ export function TrainerScanner() {
           </div>
         ) : result?.success ? (
           <div className="text-center p-6 animate-scale-up">
-            <CheckCircle2 size={36} className="text-emerald-400 mx-auto mb-3" />
-            <h4 className="text-sm font-semibold text-white">Verifikasi Sukses</h4>
+            <CheckCircle2 size={36} className="text-success mx-auto mb-3" />
+            <h4 className="text-sm font-semibold text-foreground">Verifikasi Sukses</h4>
             <p className="text-xs text-muted mt-2 leading-relaxed max-w-xs mx-auto">
               {result.message}
             </p>
             <button
               onClick={handleReset}
-              className="mt-5 px-4 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 text-xs transition-colors cursor-pointer font-semibold"
+              className="mt-5 px-4 py-1.5 rounded-lg bg-success-surface border border-success-border text-success-ink text-xs cursor-pointer font-semibold"
+              style={{ transition: "background-color var(--dur-short) var(--ease-out)" }}
             >
               Scan Kembali
             </button>
           </div>
         ) : result?.error ? (
           <div className="text-center p-6 animate-scale-up">
-            <AlertTriangle size={36} className="text-red-400 mx-auto mb-3" />
-            <h4 className="text-sm font-semibold text-white">Verifikasi Gagal</h4>
-            <p className="text-xs text-red-300 mt-2 leading-relaxed max-w-xs mx-auto">
+            <AlertTriangle size={36} className="text-red-500 mx-auto mb-3" />
+            <h4 className="text-sm font-semibold text-foreground">Verifikasi Gagal</h4>
+            <p className="text-xs text-red-600 mt-2 leading-relaxed max-w-xs mx-auto">
               {result.error}
             </p>
             <button
               onClick={handleReset}
-              className="mt-5 px-4 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-white text-xs transition-colors cursor-pointer font-semibold"
+              className="mt-5 px-4 py-1.5 rounded-lg bg-gray-100 border border-gray-200 hover:bg-gray-200 text-foreground text-xs transition-colors cursor-pointer font-semibold"
             >
               Coba Lagi
             </button>
@@ -240,12 +243,13 @@ export function TrainerScanner() {
             )}
 
             {cameraError && (
-              <div className="absolute inset-0 bg-[#0c0c14] flex flex-col items-center justify-center p-6 text-center">
-                <CameraOff size={28} className="text-red-400 mb-2" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center" style={{ background: "var(--background)" }}>
+                <CameraOff size={28} className="text-red-500 mb-2" />
                 <p className="text-xs text-muted leading-relaxed">{cameraError}</p>
                 <button
                   onClick={startScanner}
-                  className="mt-4 px-3 py-1.5 bg-accent text-white text-xs rounded-md font-semibold cursor-pointer"
+                  className="mt-4 px-3 py-1.5 text-xs rounded-md font-semibold cursor-pointer"
+                  style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
                 >
                   Aktifkan Kamera
                 </button>
@@ -254,11 +258,11 @@ export function TrainerScanner() {
           </div>
         ) : (
           <div className="text-center space-y-3 p-6">
-            <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center mx-auto">
               <Scan size={20} className="text-accent" />
             </div>
             <div>
-              <p className="text-xs text-white font-semibold">Mode Input Manual</p>
+              <p className="text-xs text-foreground font-semibold">Mode Input Manual</p>
               <p className="text-[10px] text-muted mt-1 max-w-[200px] mx-auto">
                 Ketik atau tempelkan token QR Code yang tertera di aplikasi Member Anda untuk memproses check-in.
               </p>
@@ -280,12 +284,13 @@ export function TrainerScanner() {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               disabled={isPending}
-              className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-accent/40 transition-colors disabled:opacity-50"
+              className="auth-input flex-1"
             />
             <button
               type="submit"
               disabled={isPending || !token.trim()}
-              className="px-4 rounded-lg bg-accent text-white font-medium text-sm flex items-center justify-center hover:bg-accent-hover active:scale-98 transition-all disabled:opacity-50 cursor-pointer"
+              className="px-4 rounded-lg bg-accent text-white font-medium text-sm flex items-center justify-center hover:bg-accent-hover disabled:opacity-50 cursor-pointer"
+              style={{ transition: "background-color var(--dur-short) var(--ease-out)" }}
             >
               <ArrowRight size={16} />
             </button>

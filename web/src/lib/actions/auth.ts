@@ -2,9 +2,53 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { Role } from "@/generated/prisma";
+import {
+  getRequestMeta,
+  isLoginRateLimited,
+  isRegisterRateLimited,
+  recordLoginAttempt,
+  recordRegisterAttempt,
+} from "@/lib/rate-limit";
+
+async function syncUserToPrisma(
+  userId: string,
+  email: string,
+  fullName: string,
+  defaultRole: Role = Role.MEMBER
+) {
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {
+      email,
+      fullName,
+    },
+    create: {
+      id: userId,
+      email,
+      fullName,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_role: {
+        userId,
+        role: defaultRole,
+      },
+    },
+    update: {},
+    create: {
+      userId,
+      role: defaultRole,
+    },
+  });
+}
 
 export async function login(prevState: { error: string } | null, formData: FormData) {
   const supabase = await createClient();
+  const { ipAddress, userAgent } = await getRequestMeta();
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -13,13 +57,25 @@ export async function login(prevState: { error: string } | null, formData: FormD
     return { error: "Email dan password wajib diisi." };
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
+  if (await isLoginRateLimited(email, ipAddress)) {
+    return { error: "Terlalu banyak percobaan login. Coba lagi dalam 1 menit." };
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-    return { error: `Login gagal: ${error.message}` };
+    await recordLoginAttempt(email, ipAddress, userAgent, false);
+    return { error: "Login gagal. Periksa email dan password Anda." };
+  }
+
+  await recordLoginAttempt(email, ipAddress, userAgent, true);
+
+  if (data.user) {
+    const fullName = data.user.user_metadata?.full_name ?? email.split("@")[0];
+    await syncUserToPrisma(data.user.id, data.user.email ?? email, fullName);
   }
 
   redirect("/dashboard");
@@ -27,6 +83,7 @@ export async function login(prevState: { error: string } | null, formData: FormD
 
 export async function register(prevState: { error: string } | null, formData: FormData) {
   const supabase = await createClient();
+  const { ipAddress, userAgent } = await getRequestMeta();
 
   const fullName = formData.get("fullName") as string;
   const email = formData.get("email") as string;
@@ -45,21 +102,33 @@ export async function register(prevState: { error: string } | null, formData: Fo
     return { error: "Konfirmasi password tidak cocok." };
   }
 
-  const { error } = await supabase.auth.signUp({
+  if (await isRegisterRateLimited(ipAddress)) {
+    return { error: "Terlalu banyak percobaan registrasi. Coba lagi dalam 1 menit." };
+  }
+
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: fullName,
+        active_role: Role.MEMBER,
       },
     },
   });
 
   if (error) {
+    await recordRegisterAttempt(ipAddress, userAgent, false);
     if (error.message.includes("already registered")) {
       return { error: "Email sudah terdaftar." };
     }
-    return { error: `Gagal mendaftar: ${error.message}` };
+    return { error: "Gagal mendaftar. Silakan coba lagi." };
+  }
+
+  await recordRegisterAttempt(ipAddress, userAgent, true);
+
+  if (data.user) {
+    await syncUserToPrisma(data.user.id, email, fullName, Role.MEMBER);
   }
 
   redirect("/dashboard");
@@ -81,17 +150,18 @@ export async function switchRole(role: string) {
     return { error: "Silakan login terlebih dahulu." };
   }
 
-  // We check the role from the prisma database userRole mapping
-  const { prisma } = await import("@/lib/prisma");
-  const { Role } = await import("@/generated/prisma");
+  const validRoles = new Set<string>(Object.values(Role));
+  if (!validRoles.has(role)) {
+    return { error: "Role tidak valid." };
+  }
 
-  const validRole = role as any; // Cast safely for prisma query
+  const targetRole = role as Role;
 
   const userRole = await prisma.userRole.findUnique({
     where: {
       userId_role: {
         userId: user.id,
-        role: validRole,
+        role: targetRole,
       },
     },
   });
@@ -100,7 +170,6 @@ export async function switchRole(role: string) {
     return { error: "Anda tidak memiliki akses ke role ini." };
   }
 
-  // Update active_role inside user metadata in Supabase
   const { error } = await supabase.auth.updateUser({
     data: {
       active_role: role,
@@ -110,6 +179,18 @@ export async function switchRole(role: string) {
   if (error) {
     return { error: "Gagal mengganti role. Coba lagi." };
   }
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      action: "SWITCH_ROLE",
+      entityType: "USER",
+      entityId: user.id,
+      metadata: {
+        newRole: role,
+      },
+    },
+  });
 
   redirect("/dashboard");
 }
@@ -124,10 +205,13 @@ export async function updateUserRole(targetUserId: string, role: string, action:
     return { error: "Silakan login terlebih dahulu." };
   }
 
-  const { prisma } = await import("@/lib/prisma");
-  const { Role } = await import("@/generated/prisma");
+  const validRoles = new Set<string>(Object.values(Role));
+  if (!validRoles.has(role)) {
+    return { error: "Role tidak valid." };
+  }
 
-  // 1. Verify the requester is an ADMIN
+  const targetRole = role as Role;
+
   const adminCheck = await prisma.userRole.findUnique({
     where: {
       userId_role: {
@@ -141,12 +225,9 @@ export async function updateUserRole(targetUserId: string, role: string, action:
     return { error: "Hanya Admin yang memiliki otorisasi untuk mengubah role." };
   }
 
-  // Prevent admin from removing their own ADMIN role
   if (targetUserId === user.id && role === "ADMIN" && action === "REMOVE") {
     return { error: "Anda tidak dapat menghapus akses Admin Anda sendiri." };
   }
-
-  const targetRole = role as any;
 
   try {
     if (action === "ADD") {
@@ -163,8 +244,23 @@ export async function updateUserRole(targetUserId: string, role: string, action:
           role: targetRole,
         },
       });
+
+      if (targetRole === Role.MEMBER) {
+        await prisma.member.upsert({
+          where: { userId: targetUserId },
+          update: {},
+          create: { userId: targetUserId },
+        });
+      }
+
+      if (targetRole === Role.TRAINER) {
+        await prisma.trainer.upsert({
+          where: { userId: targetUserId },
+          update: {},
+          create: { userId: targetUserId },
+        });
+      }
     } else {
-      // Check that the user has at least one role left
       const roleCount = await prisma.userRole.count({
         where: { userId: targetUserId },
       });
@@ -183,7 +279,6 @@ export async function updateUserRole(targetUserId: string, role: string, action:
       });
     }
 
-    // Record Audit Log for the role update
     await prisma.auditLog.create({
       data: {
         actorId: user.id,
@@ -199,9 +294,8 @@ export async function updateUserRole(targetUserId: string, role: string, action:
     });
 
     return { success: true };
-  } catch (err: any) {
-    return { error: `Gagal memperbarui role: ${err.message}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Gagal memperbarui role.";
+    return { error: `Gagal memperbarui role: ${message}` };
   }
 }
-
-

@@ -109,8 +109,8 @@ export function MemberQr() {
       <div className="w-full aspect-square bg-white rounded-2xl flex items-center justify-center p-6 shadow-xl relative overflow-hidden">
         {scannedSuccess ? (
           <div className="flex flex-col items-center gap-3 p-6 text-center animate-scale-up">
-            <CheckCircle2 size={48} className="text-emerald-500 animate-bounce" />
-            <p className="text-gray-950 font-bold text-base mt-2">Absensi Berhasil!</p>
+            <CheckCircle2 size={48} className="text-success" />
+            <p className="text-foreground font-bold text-base mt-2">Absensi Berhasil!</p>
             <p className="text-gray-600 text-xs mt-1 leading-relaxed">
               Sisa sesi latihan Anda telah divalidasi oleh Trainer.
             </p>
@@ -121,7 +121,7 @@ export function MemberQr() {
           </div>
         ) : loading ? (
           <div className="flex flex-col items-center gap-3">
-            <RefreshCw size={24} className="text-purple-600 animate-spin" />
+            <RefreshCw size={24} className="text-accent animate-spin" />
             <p className="text-gray-500 text-xs font-medium">Membuat QR Code...</p>
           </div>
         ) : error ? (
@@ -159,20 +159,20 @@ export function MemberQr() {
 
           <div className="flex items-center gap-3 w-full max-w-[200px]">
             {/* Visual Progress bar */}
-            <div className="flex-1 h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
+            <div className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
               <div
-                className="h-full bg-accent transition-all duration-1000 ease-linear rounded-full"
-                style={{ width: `${(timeLeft / 30) * 100}%` }}
+                className="h-full bg-accent rounded-full"
+                style={{ transition: "width 1000ms linear", width: `${(timeLeft / 30) * 100}%` }}
               />
             </div>
-            <span className="text-sm font-mono font-bold text-white w-6 text-right">
+            <span className="text-sm font-mono font-bold text-foreground w-6 text-right">
               {timeLeft}s
             </span>
           </div>
 
           <button
             onClick={fetchToken}
-            className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted hover:text-white transition-colors cursor-pointer"
+            className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors cursor-pointer"
           >
             <RefreshCw size={11} />
             Perbarui Manual

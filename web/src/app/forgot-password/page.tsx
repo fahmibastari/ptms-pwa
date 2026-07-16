@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { register } from "@/lib/actions/auth";
+import { requestPasswordReset } from "@/lib/actions/password";
 import Link from "next/link";
-import { Shield, ArrowRight, AlertCircle } from "lucide-react";
+import { Shield, ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
 
-export default function RegisterPage() {
-  const [state, formAction, isPending] = useActionState(register, null);
+export default function ForgotPasswordPage() {
+  const [state, formAction, isPending] = useActionState(requestPasswordReset, null);
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2" style={{ overflow: "hidden" }}>
@@ -27,13 +27,13 @@ export default function RegisterPage() {
             className="text-3xl font-bold leading-snug"
             style={{ color: "var(--accent-ink)", fontStyle: "normal" }}
           >
-            Bergabung dengan<br />platform kami
+            Lupa password?<br />Kami bantu reset.
           </h2>
           <p
             className="mt-4 text-sm leading-relaxed max-w-xs"
             style={{ color: "var(--accent-ink)", opacity: 0.78 }}
           >
-            Daftar sebagai member atau trainer dan mulai melacak sesi latihan Anda hari ini.
+            Masukkan email terdaftar dan kami akan mengirimkan link untuk mengatur ulang password Anda.
           </p>
         </div>
         <p className="text-xs" style={{ color: "var(--accent-ink)", opacity: 0.45 }}>
@@ -47,7 +47,7 @@ export default function RegisterPage() {
         style={{ background: "var(--background)" }}
       >
         {/* Mobile wordmark */}
-        <div className="flex items-center gap-2 mb-8 lg:hidden">
+        <div className="flex items-center gap-2 mb-10 lg:hidden">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
             <Shield size={16} style={{ color: "var(--accent-ink)" }} />
           </div>
@@ -57,10 +57,10 @@ export default function RegisterPage() {
         <div className="max-w-sm w-full animate-fade-in">
           <div className="mb-8">
             <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)", fontStyle: "normal" }}>
-              Buat akun baru
+              Reset password
             </h1>
             <p className="text-sm mt-1.5" style={{ color: "var(--muted)" }}>
-              Lengkapi data di bawah untuk mendaftar.
+              Masukkan email terdaftar untuk menerima link reset.
             </p>
           </div>
 
@@ -74,44 +74,48 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form action={formAction} className="space-y-4">
-            <div>
-              <label htmlFor="fullName" className="block text-xs font-medium mb-1.5" style={{ color: "var(--muted)" }}>
-                Nama Lengkap
-              </label>
-              <input id="fullName" name="fullName" type="text" placeholder="Nama lengkap Anda" required className="auth-input" />
+          {state?.success && (
+            <div
+              className="flex items-start gap-3 rounded-lg px-4 py-3 mb-6 animate-fade-in"
+              style={{ background: "oklch(97% 0.01 155)", border: "1px solid oklch(80% 0.1 155)" }}
+            >
+              <CheckCircle2 size={16} className="shrink-0 mt-0.5" style={{ color: "var(--success)" }} />
+              <p className="text-sm" style={{ color: "var(--success)" }}>{state.success}</p>
             </div>
+          )}
 
+          <form action={formAction} className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: "var(--muted)" }}>
                 Email
               </label>
-              <input id="email" name="email" type="email" placeholder="nama@email.com" required className="auth-input" />
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="nama@email.com"
+                required
+                className="auth-input"
+              />
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-xs font-medium mb-1.5" style={{ color: "var(--muted)" }}>
-                Password
-              </label>
-              <input id="password" name="password" type="password" placeholder="Minimal 8 karakter" required className="auth-input" />
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className="block text-xs font-medium mb-1.5" style={{ color: "var(--muted)" }}>
-                Konfirmasi Password
-              </label>
-              <input id="confirmPassword" name="confirmPassword" type="password" placeholder="Ulangi password" required className="auth-input" />
-            </div>
-
-            <button type="submit" disabled={isPending} className="btn-primary mt-2 flex items-center justify-center gap-2">
-              {isPending ? <span className="spinner" /> : <>Daftar<ArrowRight size={15} /></>}
+            <button
+              type="submit"
+              disabled={isPending}
+              className="btn-primary mt-2 flex items-center justify-center gap-2 w-full"
+            >
+              {isPending ? <span className="spinner" /> : "Kirim Link Reset"}
             </button>
           </form>
 
-          <p className="text-center text-sm mt-8" style={{ color: "var(--muted)" }}>
-            Sudah punya akun?{" "}
-            <Link href="/login" className="font-medium transition-colors" style={{ color: "var(--accent)" }}>
-              Masuk
+          <p className="text-center text-sm mt-8">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 font-medium transition-colors"
+              style={{ color: "var(--accent)" }}
+            >
+              <ArrowLeft size={14} />
+              Kembali ke Login
             </Link>
           </p>
         </div>

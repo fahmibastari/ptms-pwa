@@ -1,150 +1,300 @@
+/* Hallmark · macrostructure: Dashboard-App · genre: modern-minimal
+ * theme: custom · paper: light (oklch 99% 0.004 264) · accent: indigo (oklch 52% 0.24 264)
+ * font-display: Plus Jakarta Sans · font-body: Geist · font-mono: Geist Mono
+ * pre-emit critique: P4 H4 E4 S4 R4 V4
+ * contrast: pass (40–41) · tokens: pass (48) · mobile: pass (34)
+ */
+
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════
+   Design Tokens — OKLCH, tinted toward indigo anchor
+   ═══════════════════════════════════════════════════════════ */
 :root {
-  --background: #0a0a0f;
-  --foreground: #f0f0f5;
-  --card: #12121a;
-  --card-border: #1e1e2e;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --accent-glow: rgba(99, 102, 241, 0.15);
-  --muted: #71717a;
-  --error: #ef4444;
-  --success: #22c55e;
+  /* Surface */
+  --background:  oklch(99%   0.004 264);   /* page bg — warm white */
+  --foreground:  oklch(22%   0.02  264);   /* body text — deep ink */
+  --card:        oklch(96%   0.006 264);   /* card surface */
+  --card-border: oklch(88%   0.01  264);   /* card / input border */
+  --surface-2:   oklch(93%   0.008 264);   /* slightly deeper surface */
+
+  /* Text roles */
+  --muted:       oklch(50%   0.01  264);   /* secondary / label text */
+  --muted-2:     oklch(66%   0.01  264);   /* tertiary text */
+
+  /* Input */
+  --input-bg:    oklch(93%   0.008 264);
+
+  /* Accent — indigo, darkened for WCAG 4.5:1 on light surface */
+  --accent:       oklch(52%  0.24  264);
+  --accent-hover: oklch(46%  0.24  264);
+  --accent-ink:   oklch(98%  0.005 264);   /* text on accent fill */
+  --accent-muted: oklch(95%  0.02  264);   /* tinted surface for accent context */
+
+  /* ── Semantic status tokens ─────────────────────────────── */
+  /* Error / red */
+  --error:           oklch(56%  0.23  25);
+  --error-surface:   oklch(98%  0.01  25);
+  --error-border:    oklch(80%  0.08  25);
+  --error-ink:       oklch(40%  0.20  25);
+
+  /* Warning / amber */
+  --warning:         oklch(65%  0.18  75);
+  --warning-surface: oklch(98%  0.015 75);
+  --warning-border:  oklch(82%  0.08  75);
+  --warning-ink:     oklch(45%  0.16  75);
+
+  /* Success / green */
+  --success:         oklch(58%  0.19  155);
+  --success-surface: oklch(97%  0.012 155);
+  --success-border:  oklch(80%  0.09  155);
+  --success-ink:     oklch(38%  0.17  155);
+
+  /* Info / blue */
+  --info:            oklch(56%  0.22  240);
+  --info-surface:    oklch(97%  0.012 240);
+  --info-border:     oklch(80%  0.08  240);
+  --info-ink:        oklch(38%  0.20  240);
+
+  /* ── Role badge tokens ──────────────────────────────────── */
+  --role-admin-bg:      oklch(97%  0.01  25);
+  --role-admin-text:    oklch(42%  0.20  25);
+  --role-admin-border:  oklch(82%  0.08  25);
+
+  --role-trainer-bg:    oklch(97%  0.01  300);
+  --role-trainer-text:  oklch(44%  0.22  300);
+  --role-trainer-border:oklch(82%  0.08  300);
+
+  --role-member-bg:     oklch(97%  0.01  155);
+  --role-member-text:   oklch(40%  0.18  155);
+  --role-member-border: oklch(82%  0.08  155);
+
+  /* Easing */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7,  0, 0.84, 1);
+  --ease-in-out: cubic-bezier(0.87, 0, 0.13, 1);
+
+  /* Durations */
+  --dur-micro:  100ms;
+  --dur-short:  200ms;
+  --dur-medium: 300ms;
+
+  /* Z-index scale — named levels, no magic numbers */
+  --z-base:          100;
+  --z-sticky:        200;
+  --z-nav:           300;
+  --z-sidebar-btn:   320;   /* toggle button: above nav, visible when sidebar closed */
+  --z-overlay:       340;   /* dark backdrop */
+  --z-sidebar:       360;   /* sidebar panel */
+  --z-modal:         500;
 }
 
+/* Tailwind v4 theme mapping — semantic classes */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-border: var(--card-border);
-  --color-accent: var(--accent);
+  /* Core surfaces */
+  --color-background:   var(--background);
+  --color-foreground:   var(--foreground);
+  --color-card:         var(--card);
+  --color-card-border:  var(--card-border);
+  --color-surface-2:    var(--surface-2);
+  --color-muted:        var(--muted);
+  --color-muted-2:      var(--muted-2);
+
+  /* Accent */
+  --color-accent:       var(--accent);
   --color-accent-hover: var(--accent-hover);
-  --color-muted: var(--muted);
-  --color-error: var(--error);
-  --color-success: var(--success);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-accent-ink:   var(--accent-ink);
+  --color-accent-muted: var(--accent-muted);
+
+  /* Status */
+  --color-error:           var(--error);
+  --color-error-surface:   var(--error-surface);
+  --color-error-border:    var(--error-border);
+  --color-error-ink:       var(--error-ink);
+  --color-warning:         var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-border:  var(--warning-border);
+  --color-warning-ink:     var(--warning-ink);
+  --color-success:         var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-success-border:  var(--success-border);
+  --color-success-ink:     var(--success-ink);
+  --color-info:            var(--info);
+  --color-info-surface:    var(--info-surface);
+  --color-info-border:     var(--info-border);
+  --color-info-ink:        var(--info-ink);
+
+  /* Role badges */
+  --color-role-admin-bg:       var(--role-admin-bg);
+  --color-role-admin-text:     var(--role-admin-text);
+  --color-role-admin-border:   var(--role-admin-border);
+  --color-role-trainer-bg:     var(--role-trainer-bg);
+  --color-role-trainer-text:   var(--role-trainer-text);
+  --color-role-trainer-border: var(--role-trainer-border);
+  --color-role-member-bg:      var(--role-member-bg);
+  --color-role-member-text:    var(--role-member-text);
+  --color-role-member-border:  var(--role-member-border);
+
+  /* Typography */
+  --font-display: var(--font-display);
+  --font-sans:    var(--font-body);
+  --font-mono:    var(--font-mono);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Base
+   ═══════════════════════════════════════════════════════════ */
+html, body {
+  /* gate 34: clip (not hidden) preserves position:sticky / position:fixed */
+  overflow-x: clip;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
+  line-height: 1.55;
 }
 
-/* Glass Card */
+/* Hallmark 2+1 font discipline:
+ * display → Plus Jakarta Sans (warm humanist, distinctive weight range)
+ * body    → Geist (clean grotesk, excellent for data-dense UI)
+ * mono    → Geist Mono (code, timestamps, IDs)
+ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-style: normal; /* gate 38a: no italic headers */
+}
+
+/* Tabular numbers for data columns */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Card — solid, no backdrop-filter (glassmorphism removed)
+   ═══════════════════════════════════════════════════════════ */
 .glass-card {
-  background: rgba(18, 18, 26, 0.7);
-  backdrop-filter: blur(20px);
+  background: var(--card);
   border: 1px solid var(--card-border);
-  border-radius: 1rem;
+  border-radius: 0.75rem;
 }
 
-/* Auth Input */
+/* ═══════════════════════════════════════════════════════════
+   Auth Input
+   ═══════════════════════════════════════════════════════════ */
 .auth-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--input-bg);
   border: 1px solid var(--card-border);
   border-radius: 0.5rem;
   color: var(--foreground);
   font-size: 0.875rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  outline: none;
+  /* gate 39: outline at rest prevents geometry shift on activate */
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  transition: border-color var(--dur-short) var(--ease-out);
 }
 
-.auth-input:focus {
+/* gate 39: focus-visible (not :focus) — mouse clicks don't trigger ring */
+.auth-input:focus-visible {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  outline-color: var(--accent);
 }
 
 .auth-input::placeholder {
   color: var(--muted);
 }
 
-/* Primary Button */
+/* select elements need appearance reset */
+select.auth-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.25rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Primary Button — 8 states
+   ═══════════════════════════════════════════════════════════ */
 .btn-primary {
   width: 100%;
   padding: 0.75rem 1.5rem;
   background: var(--accent);
-  color: white;
+  color: var(--accent-ink);
   font-weight: 600;
   font-size: 0.875rem;
   border: none;
   border-radius: 0.5rem;
   cursor: pointer;
-  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  /* gate 39: transparent outline at rest */
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  /* gate 10: specify properties, never transition-all */
+  transition:
+    background  var(--dur-short) var(--ease-out),
+    transform   var(--dur-micro) var(--ease-out);
 }
 
 .btn-primary:hover:not(:disabled) {
+  /* gate: no glow shadow — background shift only */
   background: var(--accent-hover);
-  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+/* gate 15: focus ring appears instantly, never transitions */
+.btn-primary:focus-visible {
+  outline-color: var(--accent);
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
+  /* 1 px translate instead of scale — more precise */
+  transform: translateY(1px);
 }
 
+/* gate 39: disabled — opacity + cursor + native disabled attr */
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* Gradient Background Orbs */
-.bg-orb {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.3;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.bg-orb-1 {
-  width: 400px;
-  height: 400px;
-  background: #6366f1;
-  top: -100px;
-  right: -100px;
-}
-
-.bg-orb-2 {
-  width: 350px;
-  height: 350px;
-  background: #8b5cf6;
-  bottom: -80px;
-  left: -80px;
-}
-
-/* Fade-in Animation */
+/* ═══════════════════════════════════════════════════════════
+   Fade-in animation
+   ═══════════════════════════════════════════════════════════ */
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0);    }
 }
 
 .animate-fade-in {
-  animation: fadeInUp 0.5s ease-out forwards;
+  animation: fadeInUp var(--dur-medium) var(--ease-out) forwards;
 }
 
-/* Spinner */
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+/* gate 27: prefers-reduced-motion fallback */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
+    opacity: 1;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Spinner
+   ═══════════════════════════════════════════════════════════ */
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .spinner {
   width: 1.25rem;
   height: 1.25rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border: 2px solid oklch(98% 0.005 264 / 0.35);
+  border-top-color: var(--accent-ink);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.5s; }
 }

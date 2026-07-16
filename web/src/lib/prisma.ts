@@ -15,8 +15,12 @@ if (globalForPrisma.prisma) {
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set in environmental variables");
   }
-  
-  const pool = new Pool({ connectionString });
+
+  const pool = new Pool({
+    connectionString,
+    // Direct connection via port 5432 (Supabase session mode)
+    max: process.env.NODE_ENV === "production" ? 10 : 10,
+  });
   const adapter = new PrismaPg(pool);
   prismaInstance = new PrismaClient({ adapter });
   

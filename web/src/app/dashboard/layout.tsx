@@ -1,6 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
 import { Sidebar } from "./sidebar";
 import { RoleSwitcher } from "./role-switcher";
 
@@ -9,45 +7,40 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const dbRoles = await prisma.userRole.findMany({
-    where: { userId: user.id },
-    select: { role: true },
-  });
-
-  const availableRoles = dbRoles.map((r) => r.role);
-  const activeRole =
-    user.user_metadata?.active_role || availableRoles[0] || "MEMBER";
-  const userName = user.user_metadata?.full_name || "User";
-  const userEmail = user.email || "";
+  const { user, availableRoles, activeRole } = await requireAuth();
+  const userName = user.fullName;
+  const userEmail = user.email;
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Background Orbs */}
-      <div className="bg-orb bg-orb-1" />
-      <div className="bg-orb bg-orb-2" />
-
+    /* No orb divs — floating-orb anti-pattern removed */
+    <div className="min-h-screen" style={{ background: "var(--background)" }}>
       <Sidebar
         activeRole={activeRole}
         userName={userName}
         userEmail={userEmail}
       />
 
-      {/* Main Content — offset by sidebar width on desktop */}
-      <main className="relative z-10 lg:ml-[260px] min-h-screen transition-all duration-300">
-        {/* Top Bar */}
-        <header className="sticky top-0 z-30 backdrop-blur-xl bg-[#0a0a0f]/70 border-b border-white/[0.06]">
+      {/* Main content — offset by sidebar on desktop */}
+      <main
+        className="lg:ml-[260px] min-h-screen"
+        style={{
+          /* gate 10: specify property, never transition-all */
+          transition: "margin-left var(--dur-medium) var(--ease-out)",
+        }}
+      >
+        {/* Top Bar — glass-tinted paper, border via token */}
+        <header
+          className="sticky top-0"
+          style={{
+            zIndex: 300,
+            background: "oklch(99% 0.004 264 / 0.88)",
+            borderBottom: "1px solid var(--card-border)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
           <div className="flex items-center justify-between px-6 lg:px-8 h-16">
-            {/* Spacer for mobile hamburger */}
-            <div className="w-10 lg:hidden" />
+            {/* Mobile: spacer so content doesn't overlap the fixed hamburger button */}
+            <div className="w-12 lg:hidden" />
             <div className="hidden lg:block" />
 
             <div className="flex items-center gap-4">
@@ -57,7 +50,14 @@ export default async function DashboardLayout({
                   activeRole={activeRole}
                 />
               )}
-              <div className="w-8 h-8 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center text-accent font-bold text-xs">
+              {/* Avatar — uses token colors, not hardcoded */}
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs"
+                style={{
+                  background: "var(--accent)",
+                  color: "var(--accent-ink)",
+                }}
+              >
                 {userName[0]?.toUpperCase()}
               </div>
             </div>
